@@ -1,6 +1,8 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Plus, Users, BookOpen } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Users, BookOpen, Edit } from "lucide-react";
+import { useRole } from "@/contexts/RoleContext";
 
 const grades = [
   { name: "PP1", streams: [{ name: "PP1", students: 32, teacher: "Ms. Jane Wanjiru" }] },
@@ -37,10 +39,27 @@ const grades = [
 ];
 
 export default function Classes() {
-  const totalStudents = grades.reduce((acc, grade) => 
+  const { user, hasPermission } = useRole();
+  const canWrite = hasPermission("classes:write");
+
+  // Filter grades for teachers to show only their assigned classes
+  const getVisibleGrades = () => {
+    if (user.role === "teacher" && user.assignedClasses) {
+      return grades.map((grade) => ({
+        ...grade,
+        streams: grade.streams.filter((stream) =>
+          user.assignedClasses?.includes(stream.name)
+        ),
+      })).filter((grade) => grade.streams.length > 0);
+    }
+    return grades;
+  };
+
+  const visibleGrades = getVisibleGrades();
+  const totalStudents = visibleGrades.reduce((acc, grade) => 
     acc + grade.streams.reduce((streamAcc, stream) => streamAcc + stream.students, 0), 0
   );
-  const totalStreams = grades.reduce((acc, grade) => acc + grade.streams.length, 0);
+  const totalStreams = visibleGrades.reduce((acc, grade) => acc + grade.streams.length, 0);
 
   return (
     <DashboardLayout>
@@ -49,12 +68,19 @@ export default function Classes() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="page-title font-display">Classes & Grades</h1>
-            <p className="page-subtitle">CBC academic structure from PP1 to Grade 9</p>
+            <p className="page-subtitle">
+              {user.role === "teacher"
+                ? `Your assigned classes: ${user.assignedClasses?.join(", ")}`
+                : "CBC academic structure from PP1 to Grade 9"
+              }
+            </p>
           </div>
-          <Button className="gap-2">
-            <Plus className="w-4 h-4" />
-            Add Stream
-          </Button>
+          {canWrite && (
+            <Button className="gap-2">
+              <Plus className="w-4 h-4" />
+              Add Stream
+            </Button>
+          )}
         </div>
       </div>
 
@@ -65,7 +91,7 @@ export default function Classes() {
             <BookOpen className="w-6 h-6 text-primary" />
           </div>
           <div>
-            <p className="text-2xl font-bold font-display text-foreground">{grades.length}</p>
+            <p className="text-2xl font-bold font-display text-foreground">{visibleGrades.length}</p>
             <p className="text-sm text-muted-foreground">Grade Levels</p>
           </div>
         </div>
@@ -91,29 +117,46 @@ export default function Classes() {
 
       {/* Classes Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {grades.map((grade) => (
+        {visibleGrades.map((grade) => (
           <div key={grade.name} className="bg-card rounded-xl border border-border/50 overflow-hidden">
-            <div className="bg-primary/5 px-4 py-3 border-b border-border/50">
+            <div className="bg-primary/5 px-4 py-3 border-b border-border/50 flex items-center justify-between">
               <h3 className="font-display font-semibold text-foreground">{grade.name}</h3>
+              {canWrite && (
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Edit className="w-4 h-4" />
+                </Button>
+              )}
             </div>
             <div className="p-4 space-y-3">
-              {grade.streams.map((stream) => (
-                <div
-                  key={stream.name}
-                  className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors cursor-pointer"
-                >
-                  <div>
-                    <p className="font-medium text-foreground">{stream.name}</p>
-                    <p className="text-xs text-muted-foreground">{stream.teacher}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <Users className="w-4 h-4" />
-                      <span>{stream.students}</span>
+              {grade.streams.map((stream) => {
+                const isMyClass = user.role === "teacher" && user.assignedClasses?.includes(stream.name);
+                return (
+                  <div
+                    key={stream.name}
+                    className={`flex items-center justify-between p-3 rounded-lg transition-colors cursor-pointer ${
+                      isMyClass
+                        ? "bg-primary/10 border border-primary/30"
+                        : "bg-muted/50 hover:bg-muted"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-foreground">{stream.name}</p>
+                        {isMyClass && (
+                          <Badge className="bg-primary text-primary-foreground text-[10px]">Your Class</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{stream.teacher}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Users className="w-4 h-4" />
+                        <span>{stream.students}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         ))}

@@ -3,7 +3,6 @@ import {
   LayoutDashboard,
   Users,
   GraduationCap,
-  Calendar,
   ClipboardCheck,
   FileText,
   CreditCard,
@@ -14,25 +13,43 @@ import {
   UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useRole, getRoleLabel, getRoleColor } from "@/contexts/RoleContext";
+import { Badge } from "@/components/ui/badge";
 
-const navigationItems = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Students", href: "/students", icon: Users },
-  { name: "Classes", href: "/classes", icon: GraduationCap },
-  { name: "Attendance", href: "/attendance", icon: UserCheck },
-  { name: "Assessments", href: "/assessments", icon: ClipboardCheck },
-  { name: "Reports", href: "/reports", icon: FileText },
-  { name: "Fees", href: "/fees", icon: CreditCard },
-  { name: "Parents", href: "/parents", icon: BookOpen },
-  { name: "Notices", href: "/notices", icon: Bell },
+interface NavItem {
+  name: string;
+  href: string;
+  icon: typeof LayoutDashboard;
+  roles: ("admin" | "teacher" | "parent" | "bursar")[];
+}
+
+const navigationItems: NavItem[] = [
+  { name: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["admin", "teacher", "parent", "bursar"] },
+  { name: "Students", href: "/students", icon: Users, roles: ["admin", "teacher"] },
+  { name: "Classes", href: "/classes", icon: GraduationCap, roles: ["admin", "teacher"] },
+  { name: "Attendance", href: "/attendance", icon: UserCheck, roles: ["admin", "teacher", "parent"] },
+  { name: "Assessments", href: "/assessments", icon: ClipboardCheck, roles: ["admin", "teacher", "parent"] },
+  { name: "Reports", href: "/reports", icon: FileText, roles: ["admin", "teacher", "parent", "bursar"] },
+  { name: "Fees", href: "/fees", icon: CreditCard, roles: ["admin", "parent", "bursar"] },
+  { name: "Parents", href: "/parents", icon: BookOpen, roles: ["admin", "teacher", "bursar"] },
+  { name: "Notices", href: "/notices", icon: Bell, roles: ["admin", "teacher", "parent"] },
 ];
 
-const bottomItems = [
-  { name: "Settings", href: "/settings", icon: Settings },
+const bottomItems: NavItem[] = [
+  { name: "Settings", href: "/settings", icon: Settings, roles: ["admin"] },
 ];
 
 export function AppSidebar() {
   const location = useLocation();
+  const { user } = useRole();
+
+  const visibleNavItems = navigationItems.filter((item) =>
+    item.roles.includes(user.role)
+  );
+
+  const visibleBottomItems = bottomItems.filter((item) =>
+    item.roles.includes(user.role)
+  );
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
@@ -49,7 +66,7 @@ export function AppSidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {navigationItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const isActive = location.pathname === item.href;
           return (
             <Link
@@ -69,7 +86,7 @@ export function AppSidebar() {
 
       {/* Bottom section */}
       <div className="px-3 py-4 border-t border-sidebar-border space-y-1">
-        {bottomItems.map((item) => (
+        {visibleBottomItems.map((item) => (
           <Link
             key={item.name}
             to={item.href}
@@ -92,11 +109,15 @@ export function AppSidebar() {
       <div className="px-4 py-4 border-t border-sidebar-border">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-sidebar-accent flex items-center justify-center">
-            <span className="text-sm font-medium text-sidebar-foreground">JK</span>
+            <span className="text-sm font-medium text-sidebar-foreground">
+              {user.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+            </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-sidebar-foreground truncate">John Kamau</p>
-            <p className="text-xs text-sidebar-foreground/60 truncate">Administrator</p>
+            <p className="text-sm font-medium text-sidebar-foreground truncate">{user.name}</p>
+            <Badge className={cn("text-[10px] px-1.5 py-0", getRoleColor(user.role))}>
+              {getRoleLabel(user.role)}
+            </Badge>
           </div>
         </div>
       </div>

@@ -10,15 +10,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Filter, Download, MoreHorizontal, Eye, Edit, Trash2 } from "lucide-react";
+import { Search, Plus, Filter, Download, MoreHorizontal, Eye, Edit, Trash2, FileText } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useRole } from "@/contexts/RoleContext";
 
-// Mock data for students
 const mockStudents = [
   { id: 1, admNo: "2024/001", name: "Grace Wanjiku Kamau", gender: "Female", grade: "Grade 4", stream: "4A", parent: "Mary Kamau", status: "active" },
   { id: 2, admNo: "2024/002", name: "Peter Ochieng Otieno", gender: "Male", grade: "Grade 6", stream: "6B", parent: "John Otieno", status: "active" },
@@ -37,15 +37,33 @@ const statusColors = {
 };
 
 export default function Students() {
+  const { user, hasPermission } = useRole();
   const [searchQuery, setSearchQuery] = useState("");
   const [gradeFilter, setGradeFilter] = useState("all");
 
-  const filteredStudents = mockStudents.filter((student) => {
-    const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      student.admNo.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesGrade = gradeFilter === "all" || student.grade === gradeFilter;
-    return matchesSearch && matchesGrade;
-  });
+  // Filter students based on role
+  const getFilteredStudents = () => {
+    let students = mockStudents;
+    
+    // Teachers only see students in their assigned classes
+    if (user.role === "teacher" && user.assignedClasses) {
+      students = students.filter((s) => 
+        user.assignedClasses?.some((c) => s.stream.includes(c.replace(/[^0-9]/g, "")))
+      );
+    }
+
+    // Apply search and grade filters
+    return students.filter((student) => {
+      const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        student.admNo.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesGrade = gradeFilter === "all" || student.grade === gradeFilter;
+      return matchesSearch && matchesGrade;
+    });
+  };
+
+  const filteredStudents = getFilteredStudents();
+  const canWrite = hasPermission("students:write");
+  const canDelete = hasPermission("students:delete");
 
   return (
     <DashboardLayout>
@@ -54,12 +72,19 @@ export default function Students() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="page-title font-display">Students</h1>
-            <p className="page-subtitle">Manage student records and enrollment</p>
+            <p className="page-subtitle">
+              {user.role === "teacher" 
+                ? `Students in your classes (${user.assignedClasses?.join(", ")})`
+                : "Manage student records and enrollment"
+              }
+            </p>
           </div>
-          <Button className="gap-2">
-            <Plus className="w-4 h-4" />
-            Add Student
-          </Button>
+          {canWrite && (
+            <Button className="gap-2">
+              <Plus className="w-4 h-4" />
+              Add Student
+            </Button>
+          )}
         </div>
       </div>
 
@@ -181,11 +206,18 @@ export default function Students() {
                           <Eye className="w-4 h-4" /> View Profile
                         </DropdownMenuItem>
                         <DropdownMenuItem className="gap-2">
-                          <Edit className="w-4 h-4" /> Edit
+                          <FileText className="w-4 h-4" /> View Report Card
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="gap-2 text-destructive">
-                          <Trash2 className="w-4 h-4" /> Delete
-                        </DropdownMenuItem>
+                        {canWrite && (
+                          <DropdownMenuItem className="gap-2">
+                            <Edit className="w-4 h-4" /> Edit
+                          </DropdownMenuItem>
+                        )}
+                        {canDelete && (
+                          <DropdownMenuItem className="gap-2 text-destructive">
+                            <Trash2 className="w-4 h-4" /> Delete
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </td>
