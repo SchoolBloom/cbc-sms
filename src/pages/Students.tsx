@@ -10,60 +10,40 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Filter, Download, MoreHorizontal, Eye, Edit, Trash2, FileText } from "lucide-react";
+import { Search, Filter, Download, MoreHorizontal, Eye, Edit, Trash2, FileText, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useRole } from "@/contexts/RoleContext";
-
-const mockStudents = [
-  { id: 1, admNo: "2024/001", name: "Grace Wanjiku Kamau", gender: "Female", grade: "Grade 4", stream: "4A", parent: "Mary Kamau", status: "active" },
-  { id: 2, admNo: "2024/002", name: "Peter Ochieng Otieno", gender: "Male", grade: "Grade 6", stream: "6B", parent: "John Otieno", status: "active" },
-  { id: 3, admNo: "2024/003", name: "Faith Njeri Mwangi", gender: "Female", grade: "Grade 3", stream: "3A", parent: "James Mwangi", status: "active" },
-  { id: 4, admNo: "2024/004", name: "David Kipchoge Korir", gender: "Male", grade: "Grade 7", stream: "7A", parent: "Samuel Korir", status: "active" },
-  { id: 5, admNo: "2024/005", name: "Sarah Akinyi Odhiambo", gender: "Female", grade: "PP2", stream: "PP2", parent: "Michael Odhiambo", status: "active" },
-  { id: 6, admNo: "2023/089", name: "Brian Mutua Kioko", gender: "Male", grade: "Grade 8", stream: "8B", parent: "Patrick Kioko", status: "transferred" },
-  { id: 7, admNo: "2024/006", name: "Joy Wambui Ngugi", gender: "Female", grade: "Grade 5", stream: "5A", parent: "Joseph Ngugi", status: "active" },
-  { id: 8, admNo: "2024/007", name: "Kevin Onyango Juma", gender: "Male", grade: "Grade 2", stream: "2B", parent: "Daniel Juma", status: "active" },
-];
+import { useAuth } from "@/contexts/AuthContext";
+import { useStudents } from "@/hooks/useStudents";
+import { AddStudentDialog } from "@/components/students/AddStudentDialog";
 
 const statusColors = {
   active: "bg-success/10 text-success border-success/20",
   transferred: "bg-muted text-muted-foreground border-muted",
   completed: "bg-primary/10 text-primary border-primary/20",
+  suspended: "bg-destructive/10 text-destructive border-destructive/20",
 };
 
 export default function Students() {
-  const { user, hasPermission } = useRole();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [gradeFilter, setGradeFilter] = useState("all");
+  
+  const { data: students = [], isLoading, error } = useStudents();
+  
+  const canWrite = user?.role === "admin";
+  const canDelete = user?.role === "admin";
 
-  // Filter students based on role
-  const getFilteredStudents = () => {
-    let students = mockStudents;
-    
-    // Teachers only see students in their assigned classes
-    if (user.role === "teacher" && user.assignedClasses) {
-      students = students.filter((s) => 
-        user.assignedClasses?.some((c) => s.stream.includes(c.replace(/[^0-9]/g, "")))
-      );
-    }
-
-    // Apply search and grade filters
-    return students.filter((student) => {
-      const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        student.admNo.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesGrade = gradeFilter === "all" || student.grade === gradeFilter;
-      return matchesSearch && matchesGrade;
-    });
-  };
-
-  const filteredStudents = getFilteredStudents();
-  const canWrite = hasPermission("students:write");
-  const canDelete = hasPermission("students:delete");
+  const filteredStudents = students.filter((student) => {
+    const matchesSearch = student.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      student.admission_number.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesGrade = gradeFilter === "all" || student.classes?.grade === gradeFilter;
+    return matchesSearch && matchesGrade;
+  });
 
   return (
     <DashboardLayout>
@@ -72,19 +52,9 @@ export default function Students() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="page-title font-display">Students</h1>
-            <p className="page-subtitle">
-              {user.role === "teacher" 
-                ? `Students in your classes (${user.assignedClasses?.join(", ")})`
-                : "Manage student records and enrollment"
-              }
-            </p>
+            <p className="page-subtitle">Manage student records and enrollment</p>
           </div>
-          {canWrite && (
-            <Button className="gap-2">
-              <Plus className="w-4 h-4" />
-              Add Student
-            </Button>
-          )}
+          {canWrite && <AddStudentDialog />}
         </div>
       </div>
 
@@ -131,112 +101,124 @@ export default function Students() {
 
       {/* Students Table */}
       <div className="data-table">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border bg-muted/50">
-                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
-                  Adm No.
-                </th>
-                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
-                  Student Name
-                </th>
-                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
-                  Gender
-                </th>
-                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
-                  Grade
-                </th>
-                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
-                  Stream
-                </th>
-                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
-                  Parent/Guardian
-                </th>
-                <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
-                  Status
-                </th>
-                <th className="text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {filteredStudents.map((student) => (
-                <tr key={student.id} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-3">
-                    <span className="text-sm font-medium text-foreground">{student.admNo}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="text-xs font-medium text-primary">
-                          {student.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                        </span>
-                      </div>
-                      <span className="text-sm font-medium text-foreground">{student.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-sm text-muted-foreground">{student.gender}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-sm text-foreground">{student.grade}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-sm text-muted-foreground">{student.stream}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-sm text-muted-foreground">{student.parent}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant="outline" className={statusColors[student.status as keyof typeof statusColors]}>
-                      {student.status}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem className="gap-2">
-                          <Eye className="w-4 h-4" /> View Profile
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="gap-2">
-                          <FileText className="w-4 h-4" /> View Report Card
-                        </DropdownMenuItem>
-                        {canWrite && (
-                          <DropdownMenuItem className="gap-2">
-                            <Edit className="w-4 h-4" /> Edit
-                          </DropdownMenuItem>
-                        )}
-                        {canDelete && (
-                          <DropdownMenuItem className="gap-2 text-destructive">
-                            <Trash2 className="w-4 h-4" /> Delete
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </td>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          </div>
+        ) : error ? (
+          <div className="text-center py-12 text-destructive">
+            Failed to load students. Please try again.
+          </div>
+        ) : filteredStudents.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            {students.length === 0 ? "No students registered yet. Add your first student!" : "No students match your search."}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border bg-muted/50">
+                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
+                    Adm No.
+                  </th>
+                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
+                    Student Name
+                  </th>
+                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
+                    Gender
+                  </th>
+                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
+                    Class
+                  </th>
+                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
+                    Parent/Guardian
+                  </th>
+                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
+                    Status
+                  </th>
+                  <th className="text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filteredStudents.map((student) => (
+                  <tr key={student.id} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-4 py-3">
+                      <span className="text-sm font-medium text-foreground">{student.admission_number}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                          <span className="text-xs font-medium text-primary">
+                            {student.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                          </span>
+                        </div>
+                        <span className="text-sm font-medium text-foreground">{student.full_name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-sm text-muted-foreground capitalize">{student.gender}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-sm text-foreground">
+                        {student.classes ? `${student.classes.grade} ${student.classes.stream}` : "-"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-sm text-muted-foreground">
+                        {student.parents?.full_name || "-"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant="outline" className={statusColors[student.status as keyof typeof statusColors]}>
+                        {student.status}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem className="gap-2">
+                            <Eye className="w-4 h-4" /> View Profile
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="gap-2">
+                            <FileText className="w-4 h-4" /> View Report Card
+                          </DropdownMenuItem>
+                          {canWrite && (
+                            <DropdownMenuItem className="gap-2">
+                              <Edit className="w-4 h-4" /> Edit
+                            </DropdownMenuItem>
+                          )}
+                          {canDelete && (
+                            <DropdownMenuItem className="gap-2 text-destructive">
+                              <Trash2 className="w-4 h-4" /> Delete
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* Pagination */}
         <div className="flex items-center justify-between px-4 py-3 border-t border-border">
           <p className="text-sm text-muted-foreground">
-            Showing {filteredStudents.length} of {mockStudents.length} students
+            Showing {filteredStudents.length} of {students.length} students
           </p>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" disabled>
               Previous
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" disabled={filteredStudents.length <= 10}>
               Next
             </Button>
           </div>
