@@ -13,7 +13,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useRole, getRoleLabel, getRoleColor } from "@/contexts/RoleContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 
 interface NavItem {
@@ -39,17 +39,37 @@ const bottomItems: NavItem[] = [
   { name: "Settings", href: "/settings", icon: Settings, roles: ["admin"] },
 ];
 
+const roleLabels: Record<string, string> = {
+  admin: "Administrator",
+  teacher: "Teacher",
+  parent: "Parent",
+  bursar: "Bursar",
+};
+
+const roleColors: Record<string, string> = {
+  admin: "bg-primary text-primary-foreground",
+  teacher: "bg-success text-success-foreground",
+  parent: "bg-accent text-accent-foreground",
+  bursar: "bg-info text-info-foreground",
+};
+
 export function AppSidebar() {
   const location = useLocation();
-  const { user } = useRole();
+  const { user, signOut } = useAuth();
+
+  const userRole = user?.role || "teacher";
 
   const visibleNavItems = navigationItems.filter((item) =>
-    item.roles.includes(user.role)
+    item.roles.includes(userRole)
   );
 
   const visibleBottomItems = bottomItems.filter((item) =>
-    item.roles.includes(user.role)
+    item.roles.includes(userRole)
   );
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
@@ -99,7 +119,10 @@ export function AppSidebar() {
             <span className="text-sm">{item.name}</span>
           </Link>
         ))}
-        <button className="nav-item w-full text-left hover:text-destructive">
+        <button 
+          onClick={handleSignOut}
+          className="nav-item w-full text-left hover:text-destructive"
+        >
           <LogOut className="w-5 h-5 flex-shrink-0" />
           <span className="text-sm">Sign Out</span>
         </button>
@@ -110,13 +133,13 @@ export function AppSidebar() {
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-sidebar-accent flex items-center justify-center">
             <span className="text-sm font-medium text-sidebar-foreground">
-              {user.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+              {user?.fullName?.split(" ").map((n) => n[0]).join("").slice(0, 2) || "U"}
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-sidebar-foreground truncate">{user.name}</p>
-            <Badge className={cn("text-[10px] px-1.5 py-0", getRoleColor(user.role))}>
-              {getRoleLabel(user.role)}
+            <p className="text-sm font-medium text-sidebar-foreground truncate">{user?.fullName || "User"}</p>
+            <Badge className={cn("text-[10px] px-1.5 py-0", roleColors[userRole])}>
+              {roleLabels[userRole]}
             </Badge>
           </div>
         </div>
