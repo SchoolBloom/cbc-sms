@@ -1,39 +1,30 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, FileText, TrendingUp, Star, Eye } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { FileText, TrendingUp, Star, Eye, Loader2 } from "lucide-react";
 import { useRole } from "@/contexts/RoleContext";
-
-const learningAreas = ["Mathematics", "English", "Kiswahili", "Science & Technology", "Social Studies", "Religious Education", "Creative Arts", "Physical & Health Education"];
-
-const performanceLevels = [
-  { level: "EE", name: "Exceeding Expectations", color: "bg-success text-success-foreground" },
-  { level: "ME", name: "Meeting Expectations", color: "bg-primary text-primary-foreground" },
-  { level: "AE", name: "Approaching Expectations", color: "bg-warning text-warning-foreground" },
-  { level: "BE", name: "Below Expectations", color: "bg-destructive text-destructive-foreground" },
-];
-
-const recentAssessments = [
-  { id: 1, class: "Grade 4A", subject: "Mathematics", date: "2024-02-15", teacher: "Mr. John Mwangi", status: "completed" },
-  { id: 2, class: "Grade 6B", subject: "English", date: "2024-02-14", teacher: "Mr. Charles Kipruto", status: "completed" },
-  { id: 3, class: "Grade 3A", subject: "Science & Technology", date: "2024-02-14", teacher: "Ms. Lucy Adhiambo", status: "pending" },
-];
-
-// Parent view data
-const childAssessments = [
-  { subject: "Mathematics", level: "EE", comment: "Excellent problem-solving skills", date: "Feb 2024" },
-  { subject: "English", level: "ME", comment: "Good progress in reading comprehension", date: "Feb 2024" },
-  { subject: "Kiswahili", level: "EE", comment: "Outstanding performance", date: "Feb 2024" },
-  { subject: "Science & Technology", level: "EE", comment: "Shows great curiosity and understanding", date: "Feb 2024" },
-  { subject: "Social Studies", level: "ME", comment: "Good grasp of concepts", date: "Feb 2024" },
-];
+import { useAssessments, useStudentAssessments, LEARNING_AREAS, PERFORMANCE_LEVELS } from "@/hooks/useAssessments";
+import { AddAssessmentDialog } from "@/components/assessments/AddAssessmentDialog";
 
 export default function Assessments() {
   const { user, hasPermission } = useRole();
   const canWrite = hasPermission("assessments:write");
 
+  const { data: assessments, isLoading } = useAssessments();
+  const { data: studentAssessments } = useStudentAssessments(
+    user.role === "parent" ? user.childrenIds?.[0] : undefined
+  );
+
   // Parent view
   if (user.role === "parent") {
+    // Group assessments by learning area (most recent for each)
+    const latestBySubject = studentAssessments?.reduce((acc, assessment) => {
+      if (!acc[assessment.learning_area] || new Date(assessment.created_at) > new Date(acc[assessment.learning_area].created_at)) {
+        acc[assessment.learning_area] = assessment;
+      }
+      return acc;
+    }, {} as Record<string, typeof studentAssessments[0]>) || {};
+
     return (
       <DashboardLayout>
         <div className="page-header">
@@ -48,7 +39,7 @@ export default function Assessments() {
             </div>
             <div>
               <h2 className="text-lg font-display font-semibold text-foreground">Grace Wanjiku Kamau</h2>
-              <p className="text-sm text-muted-foreground">Grade 4A • Term 2, 2024</p>
+              <p className="text-sm text-muted-foreground">Grade 4A • Term 1, {new Date().getFullYear()}</p>
             </div>
           </div>
         </div>
@@ -58,7 +49,7 @@ export default function Assessments() {
             <Star className="w-5 h-5 text-accent" />CBC Performance Levels
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {performanceLevels.map((level) => (
+            {PERFORMANCE_LEVELS.map((level) => (
               <div key={level.level} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
                 <Badge className={level.color}>{level.level}</Badge>
                 <span className="text-sm text-foreground">{level.name}</span>
@@ -72,17 +63,23 @@ export default function Assessments() {
             <h3 className="font-display font-semibold text-foreground">Assessment Results</h3>
           </div>
           <div className="divide-y divide-border">
-            {childAssessments.map((assessment, idx) => (
-              <div key={idx} className="px-5 py-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium text-foreground">{assessment.subject}</span>
-                  <Badge className={performanceLevels.find(p => p.level === assessment.level)?.color}>
-                    {assessment.level}
-                  </Badge>
+            {Object.values(latestBySubject).length > 0 ? (
+              Object.values(latestBySubject).map((assessment) => (
+                <div key={assessment.id} className="px-5 py-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-foreground">{assessment.learning_area}</span>
+                    <Badge className={PERFORMANCE_LEVELS.find(p => p.level === assessment.performance_level)?.color}>
+                      {assessment.performance_level}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{assessment.comments || "No comments"}</p>
                 </div>
-                <p className="text-sm text-muted-foreground">{assessment.comment}</p>
+              ))
+            ) : (
+              <div className="px-5 py-8 text-center text-muted-foreground">
+                No assessments recorded yet
               </div>
-            ))}
+            )}
           </div>
         </div>
       </DashboardLayout>
@@ -98,7 +95,7 @@ export default function Assessments() {
             <h1 className="page-title font-display">CBC Assessments</h1>
             <p className="page-subtitle">{canWrite ? "Record and track student performance" : "View assessment records"}</p>
           </div>
-          {canWrite && <Button className="gap-2"><Plus className="w-4 h-4" />New Assessment</Button>}
+          {canWrite && <AddAssessmentDialog />}
         </div>
       </div>
 
@@ -107,7 +104,7 @@ export default function Assessments() {
           <Star className="w-5 h-5 text-accent" />CBC Performance Levels
         </h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {performanceLevels.map((level) => (
+          {PERFORMANCE_LEVELS.map((level) => (
             <div key={level.level} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
               <Badge className={level.color}>{level.level}</Badge>
               <span className="text-sm text-foreground">{level.name}</span>
@@ -121,7 +118,7 @@ export default function Assessments() {
           <div className="bg-card rounded-xl border border-border/50 p-5">
             <h3 className="font-display font-semibold text-foreground mb-4">Learning Areas</h3>
             <div className="space-y-2">
-              {learningAreas.map((area) => (
+              {LEARNING_AREAS.map((area) => (
                 <div key={area} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors cursor-pointer">
                   <FileText className="w-4 h-4 text-primary" />
                   <span className="text-sm font-medium text-foreground">{area}</span>
@@ -133,24 +130,43 @@ export default function Assessments() {
 
         <div className="lg:col-span-2">
           <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
-            <div className="px-5 py-4 border-b border-border"><h3 className="font-display font-semibold text-foreground">Recent Assessments</h3></div>
-            <div className="divide-y divide-border">
-              {recentAssessments.map((assessment) => (
-                <div key={assessment.id} className="px-5 py-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <TrendingUp className="w-5 h-5 text-primary" />
-                    <div>
-                      <p className="font-medium text-foreground">{assessment.class} - {assessment.subject}</p>
-                      <p className="text-sm text-muted-foreground">{assessment.teacher}</p>
+            <div className="px-5 py-4 border-b border-border">
+              <h3 className="font-display font-semibold text-foreground">Recent Assessments</h3>
+            </div>
+            
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : assessments && assessments.length > 0 ? (
+              <div className="divide-y divide-border">
+                {assessments.slice(0, 10).map((assessment: any) => (
+                  <div key={assessment.id} className="px-5 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <TrendingUp className="w-5 h-5 text-primary" />
+                      <div>
+                        <p className="font-medium text-foreground">
+                          {assessment.student?.full_name || "Unknown"} - {assessment.learning_area}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Grade {assessment.class?.grade} {assessment.class?.stream} • {assessment.assessment_type}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className={PERFORMANCE_LEVELS.find(p => p.level === assessment.performance_level)?.color}>
+                        {assessment.performance_level}
+                      </Badge>
+                      <Button variant="ghost" size="sm"><Eye className="w-4 h-4" /></Button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={assessment.status === "completed" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"}>{assessment.status}</Badge>
-                    <Button variant="ghost" size="sm"><Eye className="w-4 h-4" /></Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-12 text-center text-muted-foreground">
+                No assessments recorded yet. Click "New Assessment" to add one.
+              </div>
+            )}
           </div>
         </div>
       </div>
