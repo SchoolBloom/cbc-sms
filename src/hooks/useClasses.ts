@@ -87,3 +87,32 @@ export function useCreateClass() {
     },
   });
 }
+
+export function useAssignClassTeacher() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      classId,
+      teacherId,
+    }: {
+      classId: string;
+      teacherId: string | null;
+    }) => {
+      const { error } = await supabase
+        .from("classes")
+        .update({ teacher_id: teacherId })
+        .eq("id", classId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["classes"] });
+      queryClient.invalidateQueries({ queryKey: ["classes-with-count"] });
+      toast.success("Class teacher updated");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+}

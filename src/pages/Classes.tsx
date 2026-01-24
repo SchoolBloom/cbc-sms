@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, BookOpen, GraduationCap, Plus, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useClassesWithStudentCount, useCreateClass } from "@/hooks/useClasses";
+import { useAssignClassTeacher, useClassesWithStudentCount, useCreateClass } from "@/hooks/useClasses";
+import { useTeachers } from "@/hooks/useTeachers";
 import {
   Dialog,
   DialogContent,
@@ -127,6 +128,8 @@ function AddClassDialog() {
 export default function Classes() {
   const { user } = useAuth();
   const { data: classes = [], isLoading } = useClassesWithStudentCount();
+  const { data: teachers = [] } = useTeachers();
+  const assignTeacher = useAssignClassTeacher();
   
   const canWrite = user?.role === "admin";
 
@@ -138,6 +141,10 @@ export default function Classes() {
   }, {} as Record<string, typeof classes>);
 
   const totalStudents = classes.reduce((sum, c) => sum + (c.student_count || 0), 0);
+  const teacherMap = useMemo(
+    () => new Map(teachers.map((teacher) => [teacher.user_id, teacher.full_name])),
+    [teachers]
+  );
 
   return (
     <DashboardLayout>
@@ -222,6 +229,34 @@ export default function Classes() {
                         <Users className="w-3 h-3 text-muted-foreground" />
                         <span className="text-xs text-muted-foreground">{cls.student_count || 0} students</span>
                       </div>
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        Teacher: {cls.teacher_id ? teacherMap.get(cls.teacher_id) || "Unknown" : "Unassigned"}
+                      </div>
+                      {canWrite && (
+                        <div className="mt-2">
+                          <Select
+                            value={cls.teacher_id || "unassigned"}
+                            onValueChange={(value) =>
+                              assignTeacher.mutate({
+                                classId: cls.id,
+                                teacherId: value === "unassigned" ? null : value,
+                              })
+                            }
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Assign teacher" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="unassigned">Unassigned</SelectItem>
+                              {teachers.map((teacher) => (
+                                <SelectItem key={teacher.user_id} value={teacher.user_id}>
+                                  {teacher.full_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

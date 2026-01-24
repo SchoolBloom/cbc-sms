@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export interface Parent {
   id: string;
@@ -73,6 +74,61 @@ export function useParentsWithChildren() {
       }));
 
       return parentsWithChildren as Parent[];
+    },
+  });
+}
+
+export function useAssignParentRole() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ parentId, email }: { parentId: string; email: string }) => {
+      const normalizedEmail = email.trim().toLowerCase();
+      if (!normalizedEmail) {
+        throw new Error("Parent email is required to assign access.");
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, user_id, email")
+        .ilike("email", normalizedEmail)
+        .maybeSingle();
+
+      if (profileError) throw profileError;
+      if (!profile) {
+        throw new Error("No user found for that email. Ask the parent to sign up first.");
+      }
+
+      const { error: parentUpdateError } = await supabase
+        .from("parents")
+        .update({ user_id: profile.user_id, email: normalizedEmail })
+        .eq("id", parentId);
+
+      if (parentUpdateError) throw parentUpdateError;
+
+      const { data: existingRole, error: roleCheckError } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", profile.user_id)
+        .eq("role", "parent")
+        .maybeSingle();
+
+      if (roleCheckError) throw roleCheckError;
+
+      if (!existingRole) {
+        const { error: roleError } = await supabase
+          .from("user_roles")
+          .insert({ user_id: profile.user_id, role: "parent" });
+        if (roleError) throw roleError;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["parents"] });
+      queryClient.invalidateQueries({ queryKey: ["parents-with-children"] });
+      toast.success("Parent access granted");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
     },
   });
 }

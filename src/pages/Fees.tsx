@@ -2,12 +2,15 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, CreditCard, TrendingUp, AlertCircle, CheckCircle, Download, FileText, Loader2 } from "lucide-react";
 import { useRole } from "@/contexts/RoleContext";
 import { useFees, useFeeSummary, useStudentFees, formatCurrency } from "@/hooks/useFees";
 import { RecordPaymentDialog } from "@/components/fees/RecordPaymentDialog";
 import { CreateInvoiceDialog } from "@/components/fees/CreateInvoiceDialog";
 import { useState } from "react";
+import { useFeeSchedules } from "@/hooks/useFeeSchedules";
+import { AddFeeScheduleDialog } from "@/components/fees/AddFeeScheduleDialog";
 
 const statusStyles = { 
   paid: "bg-success/10 text-success border-success/20", 
@@ -17,15 +20,17 @@ const statusStyles = {
 };
 
 export default function Fees() {
-  const { user, hasPermission } = useRole();
+  const { user, selectedChildId, setSelectedChildId, hasPermission } = useRole();
   const [searchTerm, setSearchTerm] = useState("");
   const canCollect = hasPermission("fees:collect");
+  const selectedChild = user.children?.find((child) => child.id === selectedChildId);
 
   const { data: fees, isLoading } = useFees();
   const { data: summary } = useFeeSummary();
   const { data: studentFees } = useStudentFees(
-    user.role === "parent" ? user.childrenIds?.[0] : undefined
+    user.role === "parent" ? selectedChildId || undefined : undefined
   );
+  const { data: feeSchedules = [] } = useFeeSchedules(user.role !== "parent");
 
   // Parent view - shows their child's fee statement
   if (user.role === "parent") {
@@ -36,15 +41,43 @@ export default function Fees() {
     return (
       <DashboardLayout>
         <div className="page-header">
-          <h1 className="page-title font-display">Fee Statement</h1>
-          <p className="page-subtitle">View fee balance and payment history</p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="page-title font-display">Fee Statement</h1>
+              <p className="page-subtitle">View fee balance and payment history</p>
+            </div>
+            {user.children && user.children.length > 1 && (
+              <Select
+                value={selectedChildId || ""}
+                onValueChange={(value) => setSelectedChildId(value)}
+              >
+                <SelectTrigger className="w-56">
+                  <SelectValue placeholder="Select student" />
+                </SelectTrigger>
+                <SelectContent>
+                  {user.children.map((child) => (
+                    <SelectItem key={child.id} value={child.id}>
+                      {child.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
         </div>
 
         <div className="bg-card rounded-xl border border-border/50 p-6 mb-6">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-lg font-display font-semibold text-foreground">Grace Wanjiku Kamau</h2>
-              <p className="text-sm text-muted-foreground">Grade 4A • Term 1, {new Date().getFullYear()}</p>
+              <h2 className="text-lg font-display font-semibold text-foreground">
+                {selectedChild?.full_name || "Student record not linked"}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {selectedChild?.classes
+                  ? `${selectedChild.classes.grade} ${selectedChild.classes.stream}`
+                  : "Grade unavailable"}{" "}
+                • Term 1, {new Date().getFullYear()}
+              </p>
             </div>
             <Button variant="outline" className="gap-2"><Download className="w-4 h-4" />Download Statement</Button>
           </div>
@@ -120,6 +153,42 @@ export default function Fees() {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="bg-card rounded-xl border border-border/50 p-5 mb-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="font-display font-semibold text-foreground">Grade Fee Schedules</h3>
+            <p className="text-sm text-muted-foreground">Set the required amount per grade and term.</p>
+          </div>
+          {canCollect && <AddFeeScheduleDialog />}
+        </div>
+        {feeSchedules.length > 0 ? (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-muted-foreground">
+                  <th className="py-2 text-left font-medium">Grade</th>
+                  <th className="py-2 text-left font-medium">Term</th>
+                  <th className="py-2 text-left font-medium">Academic Year</th>
+                  <th className="py-2 text-right font-medium">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {feeSchedules.map((schedule) => (
+                  <tr key={schedule.id}>
+                    <td className="py-2">{schedule.grade}</td>
+                    <td className="py-2">Term {schedule.term}</td>
+                    <td className="py-2">{schedule.academic_year}</td>
+                    <td className="py-2 text-right">{formatCurrency(Number(schedule.amount))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-muted-foreground">No fee schedules yet. Add your first schedule.</p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">

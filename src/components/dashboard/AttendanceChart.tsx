@@ -1,23 +1,68 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
-const data = [
-  { name: "Mon", present: 425, absent: 23 },
-  { name: "Tue", present: 438, absent: 10 },
-  { name: "Wed", present: 420, absent: 28 },
-  { name: "Thu", present: 442, absent: 6 },
-  { name: "Fri", present: 430, absent: 18 },
-];
+interface AttendanceChartProps {
+  classIds?: string[];
+  title?: string;
+}
 
-export function AttendanceChart() {
+const buildRecentDays = (count: number) => {
+  const days: { date: string; label: string }[] = [];
+  const today = new Date();
+  for (let i = count - 1; i >= 0; i -= 1) {
+    const date = new Date(today);
+    date.setDate(today.getDate() - i);
+    const dateString = date.toISOString().split("T")[0];
+    const label = date.toLocaleDateString("en-KE", { weekday: "short" });
+    days.push({ date: dateString, label });
+  }
+  return days;
+};
+
+export function AttendanceChart({ classIds, title = "Weekly Attendance" }: AttendanceChartProps) {
+  const recentDays = buildRecentDays(5);
+  const startDate = recentDays[0]?.date;
+
+  const { data: attendanceData } = useQuery({
+    queryKey: ["attendance-chart", classIds],
+    queryFn: async () => {
+      if (classIds && classIds.length === 0) return [];
+      if (!startDate) return [];
+
+      let query = supabase
+        .from("attendance")
+        .select("date, status, class_id")
+        .gte("date", startDate);
+
+      if (classIds?.length) {
+        query = query.in("class_id", classIds);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const chartData = recentDays.map((day) => {
+    const records = attendanceData?.filter((record) => record.date === day.date) || [];
+    const present = records.filter(
+      (record) => record.status === "present" || record.status === "late" || record.status === "excused"
+    ).length;
+    const absent = records.filter((record) => record.status === "absent").length;
+    return { name: day.label, present, absent };
+  });
+
   return (
     <div className="bg-card rounded-xl border border-border/50 p-5">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-display font-semibold text-foreground">Weekly Attendance</h3>
+        <h3 className="font-display font-semibold text-foreground">{title}</h3>
         <span className="text-xs text-muted-foreground">This week</span>
       </div>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} barGap={4}>
+          <BarChart data={chartData} barGap={4}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
             <XAxis 
               dataKey="name" 

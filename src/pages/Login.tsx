@@ -48,8 +48,8 @@ export default function Login() {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("Account created successfully! You can now log in.");
-      navigate("/");
+      toast.success("Account created. Please contact your admin for access.");
+      navigate("/awaiting-allocation");
     }
     
     setLoading(false);
@@ -161,7 +161,7 @@ export default function Login() {
                     )}
                   </Button>
                   <p className="text-xs text-muted-foreground text-center">
-                    New accounts are assigned Teacher role by default. Contact admin to change your role.
+                    Roles are assigned by an administrator after signup.
                   </p>
                 </form>
               </TabsContent>

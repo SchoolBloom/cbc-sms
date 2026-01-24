@@ -19,20 +19,24 @@ import { useAttendance, useSaveAttendance, useStudentAttendanceHistory } from "@
 type AttendanceStatus = "present" | "absent" | "late" | null;
 
 export default function Attendance() {
-  const { user, hasPermission } = useRole();
+  const { user, selectedChildId, setSelectedChildId, hasPermission } = useRole();
   const [selectedClassId, setSelectedClassId] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [attendance, setAttendance] = useState<Record<string, AttendanceStatus>>({});
   const canWrite = hasPermission("attendance:write");
+  const selectedChild = user.children?.find((child) => child.id === selectedChildId);
+  const childInitials = selectedChild?.full_name
+    ? selectedChild.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2)
+    : "??";
 
   const { data: classes, isLoading: classesLoading } = useClasses();
   const { data: students, isLoading: studentsLoading } = useStudents();
   const { data: existingAttendance } = useAttendance(selectedClassId, selectedDate);
   const saveAttendance = useSaveAttendance();
 
-  // Get demo child ID for parent view
+  // Parent view
   const { data: attendanceHistory } = useStudentAttendanceHistory(
-    user.role === "parent" ? user.childrenIds?.[0] : undefined
+    user.role === "parent" ? selectedChildId || undefined : undefined
   );
 
   // Filter students by selected class
@@ -86,19 +90,47 @@ export default function Attendance() {
     return (
       <DashboardLayout>
         <div className="page-header">
-          <h1 className="page-title font-display">Attendance Record</h1>
-          <p className="page-subtitle">View your child's attendance history</p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="page-title font-display">Attendance Record</h1>
+              <p className="page-subtitle">View your child's attendance history</p>
+            </div>
+            {user.children && user.children.length > 1 && (
+              <Select
+                value={selectedChildId || ""}
+                onValueChange={(value) => setSelectedChildId(value)}
+              >
+                <SelectTrigger className="w-56">
+                  <SelectValue placeholder="Select student" />
+                </SelectTrigger>
+                <SelectContent>
+                  {user.children.map((child) => (
+                    <SelectItem key={child.id} value={child.id}>
+                      {child.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
         </div>
 
         {/* Child Info */}
         <div className="bg-card rounded-xl border border-border/50 p-5 mb-6">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="text-lg font-bold text-primary">GK</span>
+              <span className="text-lg font-bold text-primary">{childInitials}</span>
             </div>
             <div className="flex-1">
-              <h2 className="text-lg font-display font-semibold text-foreground">Grace Wanjiku Kamau</h2>
-              <p className="text-sm text-muted-foreground">Grade 4A • Admission No: 2024/001</p>
+              <h2 className="text-lg font-display font-semibold text-foreground">
+                {selectedChild?.full_name || "Student record not linked"}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {selectedChild?.classes
+                  ? `${selectedChild.classes.grade} ${selectedChild.classes.stream}`
+                  : "Grade unavailable"}{" "}
+                • Admission No: {selectedChild?.admission_number || "N/A"}
+              </p>
             </div>
             <div className="text-right">
               <div className="flex items-center gap-2">

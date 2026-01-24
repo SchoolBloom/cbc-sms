@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { FileText } from "lucide-react";
 import { useStudents } from "@/hooks/useStudents";
 import { useCreateInvoice, FEE_TYPES } from "@/hooks/useFees";
+import { useFeeSchedules } from "@/hooks/useFeeSchedules";
 
 export function CreateInvoiceDialog() {
   const [open, setOpen] = useState(false);
@@ -29,13 +30,33 @@ export function CreateInvoiceDialog() {
   const [term, setTerm] = useState("1");
 
   const { data: students } = useStudents();
+  const { data: feeSchedules = [] } = useFeeSchedules();
   const createInvoice = useCreateInvoice();
+  const currentYear = new Date().getFullYear().toString();
+
+  const selectedStudent = students?.find((student) => student.id === studentId);
+  const studentGrade = selectedStudent?.classes?.grade;
+
+  const scheduleAmount = useMemo(() => {
+    if (!studentGrade) return null;
+    const schedule = feeSchedules.find(
+      (item) =>
+        item.grade === studentGrade &&
+        item.term === Number(term) &&
+        item.academic_year === currentYear
+    );
+    return schedule?.amount ?? null;
+  }, [feeSchedules, studentGrade, term, currentYear]);
+
+  useEffect(() => {
+    if (!amount && scheduleAmount !== null) {
+      setAmount(scheduleAmount.toString());
+    }
+  }, [amount, scheduleAmount]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    const currentYear = new Date().getFullYear().toString();
-
     createInvoice.mutate(
       {
         student_id: studentId,
@@ -118,6 +139,11 @@ export function CreateInvoiceDialog() {
               placeholder="Enter amount"
               min={1}
             />
+            {scheduleAmount !== null && (
+              <p className="text-xs text-muted-foreground">
+                Grade fee schedule: KES {Number(scheduleAmount).toLocaleString("en-KE")}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">

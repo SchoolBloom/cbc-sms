@@ -1,4 +1,6 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 export type UserRole = "admin" | "teacher" | "parent" | "bursar";
 
@@ -8,16 +10,26 @@ interface RoleUser {
   email: string;
   role: UserRole;
   avatar?: string;
-  // For teachers
-  assignedClasses?: string[];
   // For parents
   childrenIds?: string[];
+  children?: {
+    id: string;
+    full_name: string;
+    admission_number: string;
+    assessment_number?: string | null;
+    status: string;
+    classes: {
+      grade: string;
+      stream: string;
+    } | null;
+  }[];
 }
 
 interface RoleContextType {
-  user: RoleUser;
-  setUser: (user: RoleUser) => void;
-  switchRole: (role: UserRole) => void;
+  user: RoleUser | null;
+  setUser: (user: RoleUser | null) => void;
+  selectedChildId: string | null;
+  setSelectedChildId: (childId: string | null) => void;
   hasPermission: (permission: Permission) => boolean;
 }
 
@@ -69,50 +81,112 @@ const rolePermissions: Record<UserRole, Permission[]> = {
   ],
 };
 
-const demoUsers: Record<UserRole, RoleUser> = {
-  admin: {
-    id: "admin-1",
-    name: "John Kamau",
-    email: "admin@sunriseprimary.sc.ke",
-    role: "admin",
-  },
-  teacher: {
-    id: "teacher-1",
-    name: "Ms. Grace Wanjiru",
-    email: "grace.wanjiru@sunriseprimary.sc.ke",
-    role: "teacher",
-    assignedClasses: ["4A", "4B"],
-  },
-  parent: {
-    id: "parent-1",
-    name: "Mary Kamau",
-    email: "mary.kamau@email.com",
-    role: "parent",
-    childrenIds: ["student-1"],
-  },
-  bursar: {
-    id: "bursar-1",
-    name: "Mr. Peter Omondi",
-    email: "bursar@sunriseprimary.sc.ke",
-    role: "bursar",
-  },
-};
-
 const RoleContext = createContext<RoleContextType | undefined>(undefined);
 
 export function RoleProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<RoleUser>(demoUsers.admin);
+  const { user: authUser } = useAuth();
+  const [user, setUser] = useState<RoleUser | null>(null);
+  const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
 
-  const switchRole = (role: UserRole) => {
-    setUser(demoUsers[role]);
-  };
+  useEffect(() => {
+    let isActive = true;
+
+    const syncUser = async () => {
+      if (!authUser) {
+        setUser(null);
+        setSelectedChildId(null);
+        return;
+      }
+
+      if (!authUser.role) {
+        setUser(null);
+        setSelectedChildId(null);
+        return;
+      }
+
+      let nextUser: RoleUser = {
+        id: authUser.id,
+        name: authUser.fullName,
+        email: authUser.email,
+        role: authUser.role,
+      };
+
+      if (authUser.role === "parent") {
+        const { data: parentByUserId } = await supabase
+          .from("parents")
+          .select("id, full_name, phone, email, user_id")
+          .eq("user_id", authUser.id)
+          .maybeSingle();
+
+        let parentRecord = parentByUserId;
+
+        if (!parentRecord && authUser.email) {
+          const { data: parentByEmail } = await supabase
+            .from("parents")
+            .select("id, full_name, phone, email, user_id")
+            .eq("email", authUser.email)
+            .maybeSingle();
+
+          parentRecord = parentByEmail ?? null;
+
+          if (parentRecord && parentRecord.user_id !== authUser.id) {
+            await supabase
+              .from("parents")
+              .update({ user_id: authUser.id })
+              .eq("id", parentRecord.id);
+            parentRecord = { ...parentRecord, user_id: authUser.id };
+          }
+        }
+
+        if (parentRecord) {
+          const { data: children } = await supabase
+            .from("students")
+            .select("id, full_name, admission_number, assessment_number, status, classes:class_id (grade, stream)")
+            .eq("parent_id", parentRecord.id)
+            .order("full_name");
+
+          const childIds = children?.map((child) => child.id) || [];
+
+          nextUser = {
+            ...nextUser,
+            name: parentRecord.full_name || nextUser.name,
+            email: parentRecord.email || nextUser.email,
+            childrenIds: childIds,
+            children: children || [],
+          };
+
+          if (isActive) {
+            setSelectedChildId((prev) => (prev && childIds.includes(prev) ? prev : childIds[0] || null));
+          }
+        } else {
+          nextUser = { ...nextUser, childrenIds: [], children: [] };
+          if (isActive) {
+            setSelectedChildId(null);
+          }
+        }
+      } else if (isActive) {
+        setSelectedChildId(null);
+      }
+
+      if (isActive) {
+        setUser(nextUser);
+      }
+    };
+
+    syncUser();
+
+    return () => {
+      isActive = false;
+    };
+  }, [authUser]);
 
   const hasPermission = (permission: Permission): boolean => {
+    if (!user) return false;
     return rolePermissions[user.role].includes(permission);
   };
 
   return (
-    <RoleContext.Provider value={{ user, setUser, switchRole, hasPermission }}>
+    <RoleContext.Provider value={{ user, setUser, selectedChildId, setSelectedChildId, hasPermission }}>
       {children}
     </RoleContext.Provider>
   );
@@ -120,7 +194,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
 export function useRole() {
   const context = useContext(RoleContext);
-  if (!context) {
+  if (!context || !context.user) {
     throw new Error("useRole must be used within a RoleProvider");
   }
   return context;

@@ -3,15 +3,26 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Phone, Mail, Users, Loader2, MoreHorizontal, Eye, Edit, Trash2 } from "lucide-react";
+import { Search, Phone, Mail, Users, Loader2, MoreHorizontal, Eye, Edit, Trash2, UserCheck } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
-import { useParentsWithChildren } from "@/hooks/useParents";
+import { useAssignParentRole, useParentsWithChildren } from "@/hooks/useParents";
 import { AddParentDialog } from "@/components/parents/AddParentDialog";
 
 export default function Parents() {
@@ -19,6 +30,7 @@ export default function Parents() {
   const [searchQuery, setSearchQuery] = useState("");
   
   const { data: parents = [], isLoading, error } = useParentsWithChildren();
+  const assignParentRole = useAssignParentRole();
   
   const canWrite = user?.role === "admin";
 
@@ -123,6 +135,41 @@ export default function Parents() {
                         <DropdownMenuItem className="gap-2">
                           <Eye className="w-4 h-4" /> View Details
                         </DropdownMenuItem>
+                        {canWrite && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <DropdownMenuItem
+                                className="gap-2"
+                                disabled={!parent.email}
+                                onSelect={(event) => event.preventDefault()}
+                              >
+                                <UserCheck className="w-4 h-4" /> Grant Portal Access
+                              </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Grant parent access?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This assigns the Parent role to {parent.full_name}. They must have already signed up
+                                  with {parent.email || "their email"}.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => {
+                                    if (parent.email) {
+                                      assignParentRole.mutate({ parentId: parent.id, email: parent.email });
+                                    }
+                                  }}
+                                  disabled={!parent.email || assignParentRole.isPending}
+                                >
+                                  {assignParentRole.isPending ? "Granting..." : "Grant Access"}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
                         {canWrite && (
                           <>
                             <DropdownMenuItem className="gap-2">

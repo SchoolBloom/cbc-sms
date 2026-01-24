@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,15 +10,26 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Search, Filter, Download, MoreHorizontal, Eye, Edit, Trash2, FileText, Loader2 } from "lucide-react";
+import { Search, Filter, Download, MoreHorizontal, Eye, Edit, Trash2, FileText, Loader2, ArrowLeftRight } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
-import { useStudents } from "@/hooks/useStudents";
+import { useStudents, useUpdateStudentStatus } from "@/hooks/useStudents";
 import { AddStudentDialog } from "@/components/students/AddStudentDialog";
 
 const statusColors = {
@@ -34,6 +45,7 @@ export default function Students() {
   const [gradeFilter, setGradeFilter] = useState("all");
   
   const { data: students = [], isLoading, error } = useStudents();
+  const updateStudentStatus = useUpdateStudentStatus();
   
   const canWrite = user?.role === "admin";
   const canDelete = user?.role === "admin";
@@ -44,6 +56,25 @@ export default function Students() {
     const matchesGrade = gradeFilter === "all" || student.classes?.grade === gradeFilter;
     return matchesSearch && matchesGrade;
   });
+  const grade9CompletionIds = useMemo(
+    () =>
+      students
+        .filter(
+          (student) =>
+            student.classes?.grade === "Grade 9" &&
+            student.status === "active"
+        )
+        .map((student) => student.id),
+    [students]
+  );
+
+  useEffect(() => {
+    if (grade9CompletionIds.length === 0 || updateStudentStatus.isPending) return;
+    updateStudentStatus.mutate({
+      studentIds: grade9CompletionIds,
+      status: "completed",
+    });
+  }, [grade9CompletionIds, updateStudentStatus]);
 
   return (
     <DashboardLayout>
@@ -125,6 +156,9 @@ export default function Students() {
                     Student Name
                   </th>
                   <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
+                    Assessment No.
+                  </th>
+                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
                     Gender
                   </th>
                   <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
@@ -156,6 +190,11 @@ export default function Students() {
                         </div>
                         <span className="text-sm font-medium text-foreground">{student.full_name}</span>
                       </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-sm text-muted-foreground">
+                        {student.assessment_number || "-"}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-sm text-muted-foreground capitalize">{student.gender}</span>
@@ -193,6 +232,42 @@ export default function Students() {
                             <DropdownMenuItem className="gap-2">
                               <Edit className="w-4 h-4" /> Edit
                             </DropdownMenuItem>
+                          )}
+                          {canWrite && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <DropdownMenuItem
+                                  className="gap-2"
+                                  disabled={student.status === "transferred" || student.status === "completed"}
+                                  onSelect={(event) => event.preventDefault()}
+                                >
+                                  <ArrowLeftRight className="w-4 h-4" /> Transfer
+                                </DropdownMenuItem>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Transfer student?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This marks {student.full_name} as transferred and removes their class assignment.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() =>
+                                      updateStudentStatus.mutate({
+                                        studentIds: [student.id],
+                                        status: "transferred",
+                                        clearClass: true,
+                                      })
+                                    }
+                                    disabled={updateStudentStatus.isPending}
+                                  >
+                                    {updateStudentStatus.isPending ? "Transferring..." : "Transfer"}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           )}
                           {canDelete && (
                             <DropdownMenuItem className="gap-2 text-destructive">

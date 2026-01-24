@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Users,
   GraduationCap,
+  BookOpenCheck,
   ClipboardCheck,
   FileText,
   CreditCard,
@@ -11,6 +12,7 @@ import {
   LogOut,
   BookOpen,
   UserCheck,
+  UserRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,11 +29,13 @@ const navigationItems: NavItem[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["admin", "teacher", "parent", "bursar"] },
   { name: "Students", href: "/students", icon: Users, roles: ["admin", "teacher"] },
   { name: "Classes", href: "/classes", icon: GraduationCap, roles: ["admin", "teacher"] },
+  { name: "Subjects", href: "/subjects", icon: BookOpenCheck, roles: ["admin"] },
   { name: "Attendance", href: "/attendance", icon: UserCheck, roles: ["admin", "teacher", "parent"] },
   { name: "Assessments", href: "/assessments", icon: ClipboardCheck, roles: ["admin", "teacher", "parent"] },
   { name: "Reports", href: "/reports", icon: FileText, roles: ["admin", "teacher", "parent", "bursar"] },
   { name: "Fees", href: "/fees", icon: CreditCard, roles: ["admin", "parent", "bursar"] },
   { name: "Parents", href: "/parents", icon: BookOpen, roles: ["admin", "teacher", "bursar"] },
+  { name: "Teachers", href: "/teachers", icon: UserRound, roles: ["admin"] },
   { name: "Notices", href: "/notices", icon: Bell, roles: ["admin", "teacher", "parent"] },
 ];
 
@@ -53,7 +57,11 @@ const roleColors: Record<string, string> = {
   bursar: "bg-info text-info-foreground",
 };
 
-export function AppSidebar() {
+interface AppSidebarContentProps {
+  onNavigate?: () => void;
+}
+
+export function AppSidebarContent({ onNavigate }: AppSidebarContentProps) {
   const location = useLocation();
   const { user, signOut } = useAuth();
 
@@ -69,10 +77,11 @@ export function AppSidebar() {
 
   const handleSignOut = async () => {
     await signOut();
+    onNavigate?.();
   };
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
+    <div className="flex h-full w-full flex-col">
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-sidebar-border">
         <div className="w-10 h-10 rounded-xl bg-sidebar-primary flex items-center justify-center">
@@ -92,6 +101,7 @@ export function AppSidebar() {
             <Link
               key={item.name}
               to={item.href}
+              onClick={onNavigate}
               className={cn(
                 "nav-item",
                 isActive && "active"
@@ -110,6 +120,7 @@ export function AppSidebar() {
           <Link
             key={item.name}
             to={item.href}
+            onClick={onNavigate}
             className={cn(
               "nav-item",
               location.pathname === item.href && "active"
@@ -144,6 +155,14 @@ export function AppSidebar() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+export function AppSidebar() {
+  return (
+    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 bg-sidebar border-r border-sidebar-border md:flex">
+      <AppSidebarContent />
     </aside>
   );
 }

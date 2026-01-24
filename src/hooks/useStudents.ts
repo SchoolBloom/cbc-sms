@@ -1,9 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export interface Student {
   id: string;
   admission_number: string;
+  assessment_number?: string | null;
   full_name: string;
   date_of_birth: string;
   gender: string;
@@ -40,6 +42,42 @@ export function useStudents() {
       
       if (error) throw error;
       return data as Student[];
+    },
+  });
+}
+
+export function useUpdateStudentStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      studentIds,
+      status,
+      clearClass,
+    }: {
+      studentIds: string[];
+      status: string;
+      clearClass?: boolean;
+    }) => {
+      if (studentIds.length === 0) return;
+
+      const updates: Record<string, string | null> = { status };
+      if (clearClass) updates.class_id = null;
+
+      const { error } = await supabase
+        .from("students")
+        .update(updates)
+        .in("id", studentIds);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      toast.success("Student records updated");
+    },
+    onError: (error) => {
+      console.error("Error updating students:", error);
+      toast.error("Failed to update students");
     },
   });
 }

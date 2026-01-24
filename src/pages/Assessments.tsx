@@ -1,5 +1,6 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { FileText, TrendingUp, Star, Eye, Loader2 } from "lucide-react";
 import { useRole } from "@/contexts/RoleContext";
@@ -7,12 +8,16 @@ import { useAssessments, useStudentAssessments, LEARNING_AREAS, PERFORMANCE_LEVE
 import { AddAssessmentDialog } from "@/components/assessments/AddAssessmentDialog";
 
 export default function Assessments() {
-  const { user, hasPermission } = useRole();
+  const { user, selectedChildId, setSelectedChildId, hasPermission } = useRole();
   const canWrite = hasPermission("assessments:write");
+  const selectedChild = user.children?.find((child) => child.id === selectedChildId);
+  const childInitials = selectedChild?.full_name
+    ? selectedChild.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2)
+    : "??";
 
   const { data: assessments, isLoading } = useAssessments();
   const { data: studentAssessments } = useStudentAssessments(
-    user.role === "parent" ? user.childrenIds?.[0] : undefined
+    user.role === "parent" ? selectedChildId || undefined : undefined
   );
 
   // Parent view
@@ -28,18 +33,46 @@ export default function Assessments() {
     return (
       <DashboardLayout>
         <div className="page-header">
-          <h1 className="page-title font-display">Academic Progress</h1>
-          <p className="page-subtitle">View your child's CBC assessment results</p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="page-title font-display">Academic Progress</h1>
+              <p className="page-subtitle">View your child's CBC assessment results</p>
+            </div>
+            {user.children && user.children.length > 1 && (
+              <Select
+                value={selectedChildId || ""}
+                onValueChange={(value) => setSelectedChildId(value)}
+              >
+                <SelectTrigger className="w-56">
+                  <SelectValue placeholder="Select student" />
+                </SelectTrigger>
+                <SelectContent>
+                  {user.children.map((child) => (
+                    <SelectItem key={child.id} value={child.id}>
+                      {child.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
         </div>
 
         <div className="bg-card rounded-xl border border-border/50 p-5 mb-6">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="text-lg font-bold text-primary">GK</span>
+              <span className="text-lg font-bold text-primary">{childInitials}</span>
             </div>
             <div>
-              <h2 className="text-lg font-display font-semibold text-foreground">Grace Wanjiku Kamau</h2>
-              <p className="text-sm text-muted-foreground">Grade 4A • Term 1, {new Date().getFullYear()}</p>
+              <h2 className="text-lg font-display font-semibold text-foreground">
+                {selectedChild?.full_name || "Student record not linked"}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {selectedChild?.classes
+                  ? `${selectedChild.classes.grade} ${selectedChild.classes.stream}`
+                  : "Grade unavailable"}{" "}
+                • Term 1, {new Date().getFullYear()}
+              </p>
             </div>
           </div>
         </div>

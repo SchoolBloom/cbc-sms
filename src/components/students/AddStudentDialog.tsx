@@ -35,6 +35,7 @@ import { Plus, Loader2 } from "lucide-react";
 
 const studentSchema = z.object({
   admission_number: z.string().min(1, "Admission number is required").max(20),
+  assessment_number: z.string().max(30).optional(),
   full_name: z.string().min(2, "Name must be at least 2 characters").max(100),
   date_of_birth: z.string().min(1, "Date of birth is required"),
   gender: z.enum(["male", "female"], { required_error: "Please select gender" }),
@@ -57,6 +58,7 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
     resolver: zodResolver(studentSchema),
     defaultValues: {
       admission_number: "",
+      assessment_number: "",
       full_name: "",
       date_of_birth: "",
       gender: undefined,
@@ -96,6 +98,7 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
     mutationFn: async (data: StudentFormData) => {
       const { error } = await supabase.from("students").insert({
         admission_number: data.admission_number.trim(),
+        assessment_number: data.assessment_number?.trim() || null,
         full_name: data.full_name.trim(),
         date_of_birth: data.date_of_birth,
         gender: data.gender,
@@ -149,6 +152,19 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
                     <FormLabel>Admission No. *</FormLabel>
                     <FormControl>
                       <Input placeholder="2025/001" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="assessment_number"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Assessment No.</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Optional" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

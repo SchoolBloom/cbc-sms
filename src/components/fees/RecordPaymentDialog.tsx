@@ -26,7 +26,7 @@ export function RecordPaymentDialog() {
   const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
 
-  const { data: fees } = useFees();
+  const { data: fees, isLoading } = useFees();
   const recordPayment = useRecordPayment();
 
   // Only show fees that have outstanding balance
@@ -82,21 +82,36 @@ export function RecordPaymentDialog() {
           <div className="space-y-2">
             <Label>Select Fee Record</Label>
             <Select value={feeId} onValueChange={setFeeId}>
-              <SelectTrigger>
+              <SelectTrigger disabled={isLoading || unpaidFees.length === 0}>
                 <SelectValue placeholder="Select student fee" />
               </SelectTrigger>
               <SelectContent>
-                {unpaidFees.map((fee) => {
-                  const balance = Number(fee.amount) - Number(fee.paid_amount || 0);
-                  const studentName = (fee as any).student?.full_name || "Unknown";
-                  return (
-                    <SelectItem key={fee.id} value={fee.id}>
-                      {studentName} - {fee.fee_type} (Balance: {formatCurrency(balance)})
-                    </SelectItem>
-                  );
-                })}
+                {isLoading ? (
+                  <SelectItem value="loading" disabled>
+                    Loading fee records...
+                  </SelectItem>
+                ) : unpaidFees.length === 0 ? (
+                  <SelectItem value="none" disabled>
+                    No unpaid fee records found
+                  </SelectItem>
+                ) : (
+                  unpaidFees.map((fee) => {
+                    const balance = Number(fee.amount) - Number(fee.paid_amount || 0);
+                    const studentName = (fee as any).student?.full_name || "Unknown";
+                    return (
+                      <SelectItem key={fee.id} value={fee.id}>
+                        {studentName} - {fee.fee_type} (Balance: {formatCurrency(balance)})
+                      </SelectItem>
+                    );
+                  })
+                )}
               </SelectContent>
             </Select>
+            {!isLoading && unpaidFees.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Create an invoice or ensure a balance is outstanding to record a payment.
+              </p>
+            )}
           </div>
 
           {selectedFee && (
