@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Eye, EyeOff, GraduationCap, Loader2 } from "lucide-react";
+import { GraduationCap, Loader2 } from "lucide-react";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -17,14 +17,10 @@ export default function Login() {
   // Login form state
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-  const [showLoginPassword, setShowLoginPassword] = useState(false);
   
   // Signup form state
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
-  const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
-  const [showSignupPassword, setShowSignupPassword] = useState(false);
-  const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
   const [signupName, setSignupName] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -46,12 +42,6 @@ export default function Login() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
-    if (signupPassword !== signupConfirmPassword) {
-      toast.error("Passwords do not match.");
-      setLoading(false);
-      return;
-    }
     
     const { error } = await signUp(signupEmail, signupPassword, signupName);
     
@@ -102,25 +92,14 @@ export default function Login() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="login-password">Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="login-password"
-                        type={showLoginPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        required
-                        className="pr-10"
-                      />
-                      <button
-                        type="button"
-                        className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
-                        onClick={() => setShowLoginPassword((prev) => !prev)}
-                        aria-label={showLoginPassword ? "Hide password" : "Show password"}
-                      >
-                        {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
+                    <Input
+                      id="login-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      required
+                    />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? (
@@ -161,53 +140,15 @@ export default function Login() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="signup-password"
-                        type={showSignupPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        value={signupPassword}
-                        onChange={(e) => setSignupPassword(e.target.value)}
-                        required
-                        minLength={6}
-                        className="pr-10"
-                      />
-                      <button
-                        type="button"
-                        className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
-                        onClick={() => setShowSignupPassword((prev) => !prev)}
-                        aria-label={showSignupPassword ? "Hide password" : "Show password"}
-                      >
-                        {showSignupPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-confirm-password">Confirm Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="signup-confirm-password"
-                        type={showSignupConfirmPassword ? "text" : "password"}
-                        placeholder="••••••••"
-                        value={signupConfirmPassword}
-                        onChange={(e) => setSignupConfirmPassword(e.target.value)}
-                        required
-                        minLength={6}
-                        className="pr-10"
-                      />
-                      <button
-                        type="button"
-                        className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
-                        onClick={() => setShowSignupConfirmPassword((prev) => !prev)}
-                        aria-label={showSignupConfirmPassword ? "Hide password" : "Show password"}
-                      >
-                        {showSignupConfirmPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </button>
-                    </div>
+                    <Input
+                      id="signup-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={signupPassword}
+                      onChange={(e) => setSignupPassword(e.target.value)}
+                      required
+                      minLength={6}
+                    />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? (

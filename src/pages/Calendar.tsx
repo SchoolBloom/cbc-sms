@@ -77,7 +77,9 @@ export default function CalendarPage() {
   );
 
   const selectedEvents = useMemo(() => {
-    if (!selectedDate) return [];
+    if (!selectedDate) {
+      return { noticeMatches: [], eventMatches: [] };
+    }
     const selectedKey = selectedDate.toDateString();
     const noticeMatches = notices.filter(
       (notice) => getEventDate(notice).toDateString() === selectedKey
