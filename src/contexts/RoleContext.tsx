@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
 
 export type UserRole = "admin" | "teacher" | "parent" | "bursar";
 
@@ -111,6 +112,10 @@ export function RoleProvider({ children }: { children: ReactNode }) {
         role: authUser.role,
       };
 
+      if (isActive) {
+        setUser(nextUser);
+      }
+
       if (authUser.role === "parent") {
         const { data: parentByUserId } = await supabase
           .from("parents")
@@ -184,6 +189,14 @@ export function RoleProvider({ children }: { children: ReactNode }) {
     if (!user) return false;
     return rolePermissions[user.role].includes(permission);
   };
+
+  if (authUser?.role && !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <RoleContext.Provider value={{ user, setUser, selectedChildId, setSelectedChildId, hasPermission }}>

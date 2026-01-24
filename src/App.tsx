@@ -17,6 +17,7 @@ import Notices from "./pages/Notices";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Subjects from "./pages/Subjects";
+import CalendarPage from "./pages/Calendar";
 import Login from "./pages/Login";
 import AwaitingAllocation from "./pages/AwaitingAllocation";
 import NotFound from "./pages/NotFound";
@@ -48,7 +49,7 @@ const roleDefaultRoutes: Record<AppRole, string> = {
   admin: "/",
   teacher: "/",
   parent: "/",
-  bursar: "/fees",
+  bursar: "/",
 };
 
 function getDefaultRoute(role: AppRole | null | undefined) {
@@ -127,6 +128,7 @@ function AppRoutes() {
       <Route path="/parents" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "bursar"]}><Parents /></RoleProtectedRoute>} />
       <Route path="/teachers" element={<RoleProtectedRoute allowedRoles={["admin"]}><Teachers /></RoleProtectedRoute>} />
       <Route path="/notices" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent"]}><Notices /></RoleProtectedRoute>} />
+      <Route path="/calendar" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent", "bursar"]}><CalendarPage /></RoleProtectedRoute>} />
       <Route path="/reports" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent", "bursar"]}><Reports /></RoleProtectedRoute>} />
       <Route path="/subjects" element={<RoleProtectedRoute allowedRoles={["admin"]}><Subjects /></RoleProtectedRoute>} />
       <Route path="/settings" element={<RoleProtectedRoute allowedRoles={["admin"]}><Settings /></RoleProtectedRoute>} />

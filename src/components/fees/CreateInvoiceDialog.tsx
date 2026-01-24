@@ -18,12 +18,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FileText } from "lucide-react";
 import { useStudents } from "@/hooks/useStudents";
-import { useCreateInvoice, FEE_TYPES } from "@/hooks/useFees";
+import { useCreateGradeInvoices, FEE_TYPES } from "@/hooks/useFees";
 import { useFeeSchedules } from "@/hooks/useFeeSchedules";
 
 export function CreateInvoiceDialog() {
   const [open, setOpen] = useState(false);
-  const [studentId, setStudentId] = useState("");
+  const [grade, setGrade] = useState("");
   const [feeType, setFeeType] = useState("");
   const [amount, setAmount] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -31,22 +31,26 @@ export function CreateInvoiceDialog() {
 
   const { data: students } = useStudents();
   const { data: feeSchedules = [] } = useFeeSchedules();
-  const createInvoice = useCreateInvoice();
+  const createInvoices = useCreateGradeInvoices();
   const currentYear = new Date().getFullYear().toString();
 
-  const selectedStudent = students?.find((student) => student.id === studentId);
-  const studentGrade = selectedStudent?.classes?.grade;
+  const gradeOptions = useMemo(() => {
+    const grades = (students || [])
+      .map((student) => student.classes?.grade)
+      .filter((value): value is string => !!value);
+    return Array.from(new Set(grades)).sort();
+  }, [students]);
 
   const scheduleAmount = useMemo(() => {
-    if (!studentGrade) return null;
+    if (!grade) return null;
     const schedule = feeSchedules.find(
       (item) =>
-        item.grade === studentGrade &&
+        item.grade === grade &&
         item.term === Number(term) &&
         item.academic_year === currentYear
     );
     return schedule?.amount ?? null;
-  }, [feeSchedules, studentGrade, term, currentYear]);
+  }, [feeSchedules, grade, term, currentYear]);
 
   useEffect(() => {
     if (!amount && scheduleAmount !== null) {
@@ -57,16 +61,14 @@ export function CreateInvoiceDialog() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    createInvoice.mutate(
+    createInvoices.mutate(
       {
-        student_id: studentId,
+        grade,
         fee_type: feeType,
         amount: Number(amount),
         due_date: dueDate,
         academic_year: currentYear,
         term: Number(term),
-        status: "pending",
-        paid_amount: 0,
       },
       {
         onSuccess: () => {
@@ -78,7 +80,7 @@ export function CreateInvoiceDialog() {
   };
 
   const resetForm = () => {
-    setStudentId("");
+    setGrade("");
     setFeeType("");
     setAmount("");
     setDueDate("");
@@ -95,19 +97,22 @@ export function CreateInvoiceDialog() {
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Create Fee Invoice</DialogTitle>
+          <DialogTitle>Create Grade Invoices</DialogTitle>
         </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          This creates invoices for all active students in the selected grade.
+        </p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label>Student</Label>
-            <Select value={studentId} onValueChange={setStudentId}>
+            <Label>Grade</Label>
+            <Select value={grade} onValueChange={setGrade}>
               <SelectTrigger>
-                <SelectValue placeholder="Select student" />
+                <SelectValue placeholder="Select grade" />
               </SelectTrigger>
               <SelectContent>
-                {students?.map((student) => (
-                  <SelectItem key={student.id} value={student.id}>
-                    {student.full_name} ({student.admission_number})
+                {gradeOptions.map((gradeOption) => (
+                  <SelectItem key={gradeOption} value={gradeOption}>
+                    {gradeOption}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -176,9 +181,9 @@ export function CreateInvoiceDialog() {
             <Button 
               type="submit" 
               className="flex-1"
-              disabled={!studentId || !feeType || !amount || !dueDate || createInvoice.isPending}
+              disabled={!grade || !feeType || !amount || !dueDate || createInvoices.isPending}
             >
-              {createInvoice.isPending ? "Creating..." : "Create Invoice"}
+              {createInvoices.isPending ? "Creating..." : "Create Invoices"}
             </Button>
           </div>
         </form>

@@ -22,15 +22,20 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
-import { useAssignParentRole, useParentsWithChildren } from "@/hooks/useParents";
+import { useAssignParentRole, useParentsWithChildren, useDeleteParent, Parent } from "@/hooks/useParents";
 import { AddParentDialog } from "@/components/parents/AddParentDialog";
+import { ParentProfileDialog } from "@/components/parents/ParentProfileDialog";
+import { EditParentDialog } from "@/components/parents/EditParentDialog";
 
 export default function Parents() {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewParent, setViewParent] = useState<Parent | null>(null);
+  const [editParent, setEditParent] = useState<Parent | null>(null);
   
   const { data: parents = [], isLoading, error } = useParentsWithChildren();
   const assignParentRole = useAssignParentRole();
+  const deleteParent = useDeleteParent();
   
   const canWrite = user?.role === "admin";
 
@@ -132,7 +137,7 @@ export default function Parents() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem className="gap-2">
+                        <DropdownMenuItem className="gap-2" onClick={() => setViewParent(parent)}>
                           <Eye className="w-4 h-4" /> View Details
                         </DropdownMenuItem>
                         {canWrite && (
@@ -172,12 +177,36 @@ export default function Parents() {
                         )}
                         {canWrite && (
                           <>
-                            <DropdownMenuItem className="gap-2">
+                            <DropdownMenuItem className="gap-2" onClick={() => setEditParent(parent)}>
                               <Edit className="w-4 h-4" /> Edit
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="gap-2 text-destructive">
-                              <Trash2 className="w-4 h-4" /> Delete
-                            </DropdownMenuItem>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <DropdownMenuItem
+                                  className="gap-2 text-destructive"
+                                  onSelect={(event) => event.preventDefault()}
+                                >
+                                  <Trash2 className="w-4 h-4" /> Delete
+                                </DropdownMenuItem>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete parent?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This permanently deletes {parent.full_name} and unlinks their children.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => deleteParent.mutate(parent.id)}
+                                    disabled={deleteParent.isPending}
+                                  >
+                                    {deleteParent.isPending ? "Deleting..." : "Delete"}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </>
                         )}
                       </DropdownMenuContent>
@@ -221,6 +250,17 @@ export default function Parents() {
           ))}
         </div>
       )}
+
+      <ParentProfileDialog
+        parent={viewParent}
+        open={!!viewParent}
+        onOpenChange={(open) => !open && setViewParent(null)}
+      />
+      <EditParentDialog
+        parent={editParent}
+        open={!!editParent}
+        onOpenChange={(open) => !open && setEditParent(null)}
+      />
     </DashboardLayout>
   );
 }

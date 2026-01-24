@@ -132,3 +132,55 @@ export function useAssignParentRole() {
     },
   });
 }
+
+export function useUpdateParent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      updates,
+    }: {
+      id: string;
+      updates: {
+        full_name?: string;
+        phone?: string;
+        email?: string | null;
+        address?: string | null;
+        occupation?: string | null;
+      };
+    }) => {
+      const { error } = await supabase.from("parents").update(updates).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["parents"] });
+      queryClient.invalidateQueries({ queryKey: ["parents-with-children"] });
+      toast.success("Parent updated successfully");
+    },
+    onError: (error) => {
+      console.error("Error updating parent:", error);
+      toast.error("Failed to update parent");
+    },
+  });
+}
+
+export function useDeleteParent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (parentId: string) => {
+      const { error } = await supabase.from("parents").delete().eq("id", parentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["parents"] });
+      queryClient.invalidateQueries({ queryKey: ["parents-with-children"] });
+      toast.success("Parent deleted successfully");
+    },
+    onError: (error) => {
+      console.error("Error deleting parent:", error);
+      toast.error("Failed to delete parent");
+    },
+  });
+}

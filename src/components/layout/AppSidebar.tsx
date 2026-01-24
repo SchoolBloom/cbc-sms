@@ -13,6 +13,7 @@ import {
   BookOpen,
   UserCheck,
   UserRound,
+  Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -37,6 +38,7 @@ const navigationItems: NavItem[] = [
   { name: "Parents", href: "/parents", icon: BookOpen, roles: ["admin", "teacher", "bursar"] },
   { name: "Teachers", href: "/teachers", icon: UserRound, roles: ["admin"] },
   { name: "Notices", href: "/notices", icon: Bell, roles: ["admin", "teacher", "parent"] },
+  { name: "Calendar", href: "/calendar", icon: Calendar, roles: ["admin", "teacher", "parent", "bursar"] },
 ];
 
 const bottomItems: NavItem[] = [

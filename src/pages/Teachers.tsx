@@ -24,12 +24,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
-import { useDeleteTeacher, useTeachers, useTransferTeacher } from "@/hooks/useTeachers";
+import { useDeleteTeacher, useTeachers, useTransferTeacher, Teacher } from "@/hooks/useTeachers";
 import { AddTeacherDialog } from "@/components/teachers/AddTeacherDialog";
+import { TeacherProfileDialog } from "@/components/teachers/TeacherProfileDialog";
 
 export default function Teachers() {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewTeacher, setViewTeacher] = useState<Teacher | null>(null);
 
   const { data: teachers = [], isLoading, error } = useTeachers();
   const deleteTeacher = useDeleteTeacher();
@@ -184,7 +186,7 @@ export default function Teachers() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem className="gap-2">
+                        <DropdownMenuItem className="gap-2" onClick={() => setViewTeacher(teacher)}>
                           <Eye className="w-4 h-4" /> View Details
                         </DropdownMenuItem>
                         {canWrite && (
@@ -288,6 +290,14 @@ export default function Teachers() {
           ))}
         </div>
       )}
+
+      <TeacherProfileDialog
+        teacher={viewTeacher}
+        open={!!viewTeacher}
+        onOpenChange={(open) => !open && setViewTeacher(null)}
+        classes={viewTeacher ? classesByTeacher.get(viewTeacher.user_id) || [] : []}
+        subjects={viewTeacher ? subjectsByTeacher.get(viewTeacher.user_id) || [] : []}
+      />
     </DashboardLayout>
   );
 }

@@ -33,7 +33,6 @@ const audienceOptions = [
   { id: "all", label: "All" },
   { id: "parents", label: "Parents" },
   { id: "teachers", label: "Teachers" },
-  { id: "students", label: "Students" },
 ];
 
 const noticeSchema = z.object({

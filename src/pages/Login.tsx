@@ -121,7 +121,7 @@ export default function Login() {
                     <Input
                       id="signup-name"
                       type="text"
-                      placeholder="John Doe"
+                      placeholder="John Mwangi"
                       value={signupName}
                       onChange={(e) => setSignupName(e.target.value)}
                       required

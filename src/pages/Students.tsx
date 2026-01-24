@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,8 +30,10 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
-import { useStudents, useUpdateStudentStatus } from "@/hooks/useStudents";
+import { useStudents, useUpdateStudentStatus, useDeleteStudent, Student } from "@/hooks/useStudents";
 import { AddStudentDialog } from "@/components/students/AddStudentDialog";
+import { StudentProfileDialog } from "@/components/students/StudentProfileDialog";
+import { EditStudentDialog } from "@/components/students/EditStudentDialog";
 
 const statusColors = {
   active: "bg-success/10 text-success border-success/20",
@@ -40,12 +43,16 @@ const statusColors = {
 };
 
 export default function Students() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [gradeFilter, setGradeFilter] = useState("all");
+  const [viewStudent, setViewStudent] = useState<Student | null>(null);
+  const [editStudent, setEditStudent] = useState<Student | null>(null);
   
   const { data: students = [], isLoading, error } = useStudents();
   const updateStudentStatus = useUpdateStudentStatus();
+  const deleteStudent = useDeleteStudent();
   
   const canWrite = user?.role === "admin";
   const canDelete = user?.role === "admin";
@@ -222,14 +229,14 @@ export default function Students() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem className="gap-2">
+                          <DropdownMenuItem className="gap-2" onClick={() => setViewStudent(student)}>
                             <Eye className="w-4 h-4" /> View Profile
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="gap-2">
+                          <DropdownMenuItem className="gap-2" onClick={() => navigate("/reports")}>
                             <FileText className="w-4 h-4" /> View Report Card
                           </DropdownMenuItem>
                           {canWrite && (
-                            <DropdownMenuItem className="gap-2">
+                            <DropdownMenuItem className="gap-2" onClick={() => setEditStudent(student)}>
                               <Edit className="w-4 h-4" /> Edit
                             </DropdownMenuItem>
                           )}
@@ -270,9 +277,33 @@ export default function Students() {
                             </AlertDialog>
                           )}
                           {canDelete && (
-                            <DropdownMenuItem className="gap-2 text-destructive">
-                              <Trash2 className="w-4 h-4" /> Delete
-                            </DropdownMenuItem>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <DropdownMenuItem
+                                  className="gap-2 text-destructive"
+                                  onSelect={(event) => event.preventDefault()}
+                                >
+                                  <Trash2 className="w-4 h-4" /> Delete
+                                </DropdownMenuItem>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete student?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This permanently deletes {student.full_name} and their related records.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => deleteStudent.mutate(student.id)}
+                                    disabled={deleteStudent.isPending}
+                                  >
+                                    {deleteStudent.isPending ? "Deleting..." : "Delete"}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -299,6 +330,17 @@ export default function Students() {
           </div>
         </div>
       </div>
+
+      <StudentProfileDialog
+        student={viewStudent}
+        open={!!viewStudent}
+        onOpenChange={(open) => !open && setViewStudent(null)}
+      />
+      <EditStudentDialog
+        student={editStudent}
+        open={!!editStudent}
+        onOpenChange={(open) => !open && setEditStudent(null)}
+      />
     </DashboardLayout>
   );
 }

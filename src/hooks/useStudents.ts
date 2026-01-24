@@ -102,3 +102,57 @@ export function useStudent(id: string) {
     enabled: !!id,
   });
 }
+
+export function useUpdateStudent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      updates,
+    }: {
+      id: string;
+      updates: {
+        admission_number?: string;
+        assessment_number?: string | null;
+        full_name?: string;
+        date_of_birth?: string;
+        gender?: string;
+        class_id?: string | null;
+        parent_id?: string | null;
+        medical_notes?: string | null;
+        status?: string;
+      };
+    }) => {
+      const { error } = await supabase.from("students").update(updates).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      toast.success("Student updated successfully");
+    },
+    onError: (error) => {
+      console.error("Error updating student:", error);
+      toast.error("Failed to update student");
+    },
+  });
+}
+
+export function useDeleteStudent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (studentId: string) => {
+      const { error } = await supabase.from("students").delete().eq("id", studentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      toast.success("Student deleted successfully");
+    },
+    onError: (error) => {
+      console.error("Error deleting student:", error);
+      toast.error("Failed to delete student");
+    },
+  });
+}

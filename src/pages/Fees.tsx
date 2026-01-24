@@ -171,6 +171,8 @@ export default function Fees() {
                   <th className="py-2 text-left font-medium">Grade</th>
                   <th className="py-2 text-left font-medium">Term</th>
                   <th className="py-2 text-left font-medium">Academic Year</th>
+                  <th className="py-2 text-left font-medium">Fee Type</th>
+                  <th className="py-2 text-left font-medium">Due Date</th>
                   <th className="py-2 text-right font-medium">Amount</th>
                 </tr>
               </thead>
@@ -180,6 +182,10 @@ export default function Fees() {
                     <td className="py-2">{schedule.grade}</td>
                     <td className="py-2">Term {schedule.term}</td>
                     <td className="py-2">{schedule.academic_year}</td>
+                    <td className="py-2">{schedule.fee_type}</td>
+                    <td className="py-2">
+                      {new Date(schedule.due_date).toLocaleDateString("en-KE")}
+                    </td>
                     <td className="py-2 text-right">{formatCurrency(Number(schedule.amount))}</td>
                   </tr>
                 ))}
