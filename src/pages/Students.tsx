@@ -63,6 +63,16 @@ export default function Students() {
     const matchesGrade = gradeFilter === "all" || student.classes?.grade === gradeFilter;
     return matchesSearch && matchesGrade;
   });
+  const sortedStudents = useMemo(
+    () =>
+      [...filteredStudents].sort((a, b) =>
+        a.admission_number.localeCompare(b.admission_number, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        })
+      ),
+    [filteredStudents]
+  );
   const grade9CompletionIds = useMemo(
     () =>
       students
@@ -127,7 +137,17 @@ export default function Students() {
               <SelectItem value="Grade 9">Grade 9</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" size="icon">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              setSearchQuery("");
+              setGradeFilter("all");
+            }}
+            disabled={searchQuery.length === 0 && gradeFilter === "all"}
+            aria-label="Clear filters"
+            title="Clear filters"
+          >
             <Filter className="w-4 h-4" />
           </Button>
           <Button variant="outline" className="gap-2">
@@ -183,7 +203,7 @@ export default function Students() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredStudents.map((student) => (
+                {sortedStudents.map((student) => (
                   <tr key={student.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3">
                       <span className="text-sm font-medium text-foreground">{student.admission_number}</span>

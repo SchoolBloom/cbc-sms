@@ -90,7 +90,7 @@ export function AppSidebarContent({ onNavigate }: AppSidebarContentProps) {
           <GraduationCap className="w-6 h-6 text-sidebar-primary-foreground" />
         </div>
         <div>
-          <h1 className="font-display font-bold text-lg text-sidebar-foreground">Shule SMS</h1>
+          <h1 className="font-display font-bold text-lg text-sidebar-foreground">School Bloom</h1>
           <p className="text-xs text-sidebar-foreground/60">School Management</p>
         </div>
       </div>

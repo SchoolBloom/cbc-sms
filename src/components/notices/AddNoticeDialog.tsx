@@ -85,6 +85,7 @@ export function AddNoticeDialog({ trigger }: AddNoticeDialogProps) {
     onSuccess: () => {
       toast.success("Notice created");
       queryClient.invalidateQueries({ queryKey: ["notices"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar-notices"] });
       setOpen(false);
       form.reset({
         title: "",

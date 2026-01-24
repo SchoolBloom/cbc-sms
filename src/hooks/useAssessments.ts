@@ -18,10 +18,10 @@ export const LEARNING_AREAS = [
 ];
 
 export const PERFORMANCE_LEVELS = [
-  { level: "EE", name: "Exceeding Expectations", color: "bg-success text-success-foreground" },
-  { level: "ME", name: "Meeting Expectations", color: "bg-primary text-primary-foreground" },
-  { level: "AE", name: "Approaching Expectations", color: "bg-warning text-warning-foreground" },
-  { level: "BE", name: "Below Expectations", color: "bg-destructive text-destructive-foreground" },
+  { level: "exceeds", code: "EE", name: "Exceeding Expectations", color: "bg-success text-success-foreground" },
+  { level: "meets", code: "ME", name: "Meeting Expectations", color: "bg-primary text-primary-foreground" },
+  { level: "approaches", code: "AE", name: "Approaching Expectations", color: "bg-warning text-warning-foreground" },
+  { level: "below", code: "BE", name: "Below Expectations", color: "bg-destructive text-destructive-foreground" },
 ];
 
 export function useAssessments(classId?: string, learningArea?: string) {

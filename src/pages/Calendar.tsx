@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { useRole } from "@/contexts/RoleContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Calendar as CalendarIcon, Users } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon, Users, MapPin } from "lucide-react";
+import { AddEventDialog } from "@/components/events/AddEventDialog";
 
 type NoticeEvent = {
   id: string;
@@ -19,6 +20,19 @@ type NoticeEvent = {
 
 function getEventDate(event: NoticeEvent) {
   return new Date(event.published_at || event.created_at);
+}
+
+type SchoolEvent = {
+  id: string;
+  title: string;
+  description: string | null;
+  location: string | null;
+  event_date: string;
+  created_at: string;
+};
+
+function getSchoolEventDate(event: SchoolEvent) {
+  return new Date(event.event_date);
 }
 
 export default function CalendarPage() {
@@ -44,13 +58,36 @@ export default function CalendarPage() {
     },
   });
 
-  const eventDates = useMemo(() => notices.map(getEventDate), [notices]);
+  const { data: events = [], isLoading: eventsLoading, error: eventsError } = useQuery({
+    queryKey: ["calendar-events"],
+    queryFn: async () => {
+      const { data, error: eventsQueryError } = await supabase
+        .from("events")
+        .select("id, title, description, location, event_date, created_at")
+        .order("event_date", { ascending: true });
+
+      if (eventsQueryError) throw eventsQueryError;
+      return (data || []) as SchoolEvent[];
+    },
+  });
+
+  const eventDates = useMemo(
+    () => [...notices.map(getEventDate), ...events.map(getSchoolEventDate)],
+    [events, notices]
+  );
 
   const selectedEvents = useMemo(() => {
     if (!selectedDate) return [];
     const selectedKey = selectedDate.toDateString();
-    return notices.filter((notice) => getEventDate(notice).toDateString() === selectedKey);
-  }, [notices, selectedDate]);
+    const noticeMatches = notices.filter(
+      (notice) => getEventDate(notice).toDateString() === selectedKey
+    );
+    const eventMatches = events.filter(
+      (event) => getSchoolEventDate(event).toDateString() === selectedKey
+    );
+
+    return { noticeMatches, eventMatches };
+  }, [events, notices, selectedDate]);
 
   return (
     <DashboardLayout>
@@ -60,16 +97,21 @@ export default function CalendarPage() {
             <h1 className="page-title font-display">School Calendar</h1>
             <p className="page-subtitle">View important dates, notices, and events</p>
           </div>
+          {user.role === "admin" && (
+            <div className="flex flex-wrap gap-2">
+              <AddEventDialog />
+            </div>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-6">
         <div className="bg-card rounded-xl border border-border/50 p-5">
-          {isLoading ? (
+          {isLoading || eventsLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
             </div>
-          ) : error ? (
+          ) : error || eventsError ? (
             <div className="text-center py-12 text-destructive">
               Failed to load calendar events. Please try again.
             </div>
@@ -89,7 +131,7 @@ export default function CalendarPage() {
 
         <div className="bg-card rounded-xl border border-border/50 p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display font-semibold text-foreground">Events</h2>
+            <h2 className="font-display font-semibold text-foreground">Events & Notices</h2>
             <Badge variant="outline" className="text-xs">
               {selectedDate
                 ? selectedDate.toLocaleDateString("en-KE", { month: "short", day: "numeric", year: "numeric" })
@@ -97,29 +139,66 @@ export default function CalendarPage() {
             </Badge>
           </div>
           <div className="space-y-3">
-            {selectedEvents.length > 0 ? (
-              selectedEvents.map((event) => (
-                <div key={event.id} className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
-                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <CalendarIcon className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-foreground text-sm">{event.title}</p>
-                    <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <CalendarIcon className="w-3 h-3" />
-                        {getEventDate(event).toLocaleDateString("en-KE", { month: "short", day: "numeric" })}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Users className="w-3 h-3" />
-                        {event.target_audience?.length ? event.target_audience.join(", ") : "all"}
-                      </span>
+            {selectedEvents.noticeMatches.length === 0 && selectedEvents.eventMatches.length === 0 ? (
+              <div className="text-sm text-muted-foreground">No events for this date.</div>
+            ) : (
+              <>
+                {selectedEvents.eventMatches.map((event) => (
+                  <div key={`event-${event.id}`} className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <CalendarIcon className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-foreground text-sm">{event.title}</p>
+                        <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+                          Event
+                        </Badge>
+                      </div>
+                      {event.description && (
+                        <p className="mt-1 text-xs text-muted-foreground">{event.description}</p>
+                      )}
+                      <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <CalendarIcon className="w-3 h-3" />
+                          {getSchoolEventDate(event).toLocaleDateString("en-KE", { month: "short", day: "numeric" })}
+                        </span>
+                        {event.location && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            {event.location}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-sm text-muted-foreground">No events for this date.</div>
+                ))}
+                {selectedEvents.noticeMatches.map((event) => (
+                  <div key={`notice-${event.id}`} className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <CalendarIcon className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-foreground text-sm">{event.title}</p>
+                        <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                          Notice
+                        </Badge>
+                      </div>
+                      <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <CalendarIcon className="w-3 h-3" />
+                          {getEventDate(event).toLocaleDateString("en-KE", { month: "short", day: "numeric" })}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3 h-3" />
+                          {event.target_audience?.length ? event.target_audience.join(", ") : "all"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </>
             )}
           </div>
         </div>

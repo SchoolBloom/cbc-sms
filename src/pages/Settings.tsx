@@ -129,11 +129,11 @@ export default function Settings() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone Number</Label>
-                    <Input id="phone" defaultValue="+254 20 123 4567" disabled />
+                    <Input id="phone" defaultValue="+254 720 958 989" disabled />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="email">Email Address</Label>
-                    <Input id="email" type="email" defaultValue="info@sunriseprimary.sc.ke" disabled />
+                    <Input id="email" type="email" defaultValue="sanaeteducentre@gmail.com" disabled />
                   </div>
                 </div>
 

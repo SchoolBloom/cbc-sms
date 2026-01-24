@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,6 +20,8 @@ import { Plus } from "lucide-react";
 import { useClasses } from "@/hooks/useClasses";
 import { useStudents } from "@/hooks/useStudents";
 import { useCreateAssessment, LEARNING_AREAS, PERFORMANCE_LEVELS } from "@/hooks/useAssessments";
+import { useRole } from "@/contexts/RoleContext";
+import { useSubjectAssignments } from "@/hooks/useSubjects";
 
 export function AddAssessmentDialog() {
   const [open, setOpen] = useState(false);
@@ -31,15 +33,86 @@ export function AddAssessmentDialog() {
   const [strand, setStrand] = useState("");
   const [comments, setComments] = useState("");
 
+  const { user } = useRole();
   const { data: classes } = useClasses();
   const { data: students } = useStudents();
+  const { data: subjectAssignments = [] } = useSubjectAssignments();
   const createAssessment = useCreateAssessment();
 
-  const filteredStudents = students?.filter((s) => s.class_id === classId) || [];
+  const allowedClassIds = useMemo(() => {
+    if (user.role !== "teacher") return null;
+
+    return new Set(
+      subjectAssignments
+        .filter((assignment) => assignment.teacher_id === user.id)
+        .map((assignment) => assignment.class_id)
+    );
+  }, [subjectAssignments, user.id, user.role]);
+
+  const filteredClasses = useMemo(() => {
+    if (!classes) return [];
+    if (!allowedClassIds) return classes;
+    return classes.filter((cls) => allowedClassIds.has(cls.id));
+  }, [allowedClassIds, classes]);
+
+  const filteredStudents = useMemo(() => {
+    if (!students) return [];
+    if (allowedClassIds) {
+      return students.filter((s) => allowedClassIds.has(s.class_id));
+    }
+    return students;
+  }, [allowedClassIds, students]);
+
+  const filteredStudentsByClass = filteredStudents.filter((s) => s.class_id === classId);
+  const allowedLearningAreas = useMemo(() => {
+    if (user.role !== "teacher") {
+      return LEARNING_AREAS;
+    }
+
+    const assignedSubjectNames = subjectAssignments
+      .filter((assignment) => assignment.teacher_id === user.id)
+      .filter((assignment) => (classId ? assignment.class_id === classId : true))
+      .map((assignment) => assignment.subject?.name)
+      .filter(Boolean) as string[];
+
+    const unique = Array.from(
+      new Set(assignedSubjectNames.map((name) => name.trim()).filter(Boolean))
+    );
+
+    return unique.sort((a, b) => a.localeCompare(b));
+  }, [classId, subjectAssignments, user.id, user.role]);
+
+  const learningAreaPlaceholder =
+    user.role === "teacher"
+      ? classId
+        ? allowedLearningAreas.length > 0
+          ? "Select learning area"
+          : "No assigned learning areas"
+        : "Select class first"
+      : "Select learning area";
+
+  useEffect(() => {
+    if (!learningArea) return;
+    if (!allowedLearningAreas.includes(learningArea)) {
+      setLearningArea("");
+    }
+  }, [allowedLearningAreas, learningArea]);
+
+  useEffect(() => {
+    if (!classId) return;
+    if (allowedClassIds && !allowedClassIds.has(classId)) {
+      setClassId("");
+      setStudentId("");
+    }
+  }, [allowedClassIds, classId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (user.role === "teacher" && !allowedLearningAreas.includes(learningArea)) {
+      return;
+    }
+
     const currentYear = new Date().getFullYear().toString();
     const currentTerm = 1; // Could be dynamic based on date
 
@@ -54,6 +127,7 @@ export function AddAssessmentDialog() {
         comments: comments || null,
         academic_year: currentYear,
         term: currentTerm,
+        assessed_by: user.id,
       },
       {
         onSuccess: () => {
@@ -91,10 +165,16 @@ export function AddAssessmentDialog() {
             <Label>Class</Label>
             <Select value={classId} onValueChange={(v) => { setClassId(v); setStudentId(""); }}>
               <SelectTrigger>
-                <SelectValue placeholder="Select class" />
+                <SelectValue
+                  placeholder={
+                    user.role === "teacher" && allowedClassIds && filteredClasses.length === 0
+                      ? "No assigned classes"
+                      : "Select class"
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
-                {classes?.map((cls) => (
+                {filteredClasses.map((cls) => (
                   <SelectItem key={cls.id} value={cls.id}>
                     Grade {cls.grade} {cls.stream}
                   </SelectItem>
@@ -110,7 +190,7 @@ export function AddAssessmentDialog() {
                 <SelectValue placeholder={classId ? "Select student" : "Select class first"} />
               </SelectTrigger>
               <SelectContent>
-                {filteredStudents.map((student) => (
+                {filteredStudentsByClass.map((student) => (
                   <SelectItem key={student.id} value={student.id}>
                     {student.full_name}
                   </SelectItem>
@@ -121,12 +201,16 @@ export function AddAssessmentDialog() {
 
           <div className="space-y-2">
             <Label>Learning Area</Label>
-            <Select value={learningArea} onValueChange={setLearningArea}>
+            <Select
+              value={learningArea}
+              onValueChange={setLearningArea}
+              disabled={user.role === "teacher" && (!classId || allowedLearningAreas.length === 0)}
+            >
               <SelectTrigger>
-                <SelectValue placeholder="Select learning area" />
+                <SelectValue placeholder={learningAreaPlaceholder} />
               </SelectTrigger>
               <SelectContent>
-                {LEARNING_AREAS.map((area) => (
+                {allowedLearningAreas.map((area) => (
                   <SelectItem key={area} value={area}>
                     {area}
                   </SelectItem>
@@ -159,7 +243,7 @@ export function AddAssessmentDialog() {
               <SelectContent>
                 {PERFORMANCE_LEVELS.map((level) => (
                   <SelectItem key={level.level} value={level.level}>
-                    {level.level} - {level.name}
+                    {level.code} - {level.name}
                   </SelectItem>
                 ))}
               </SelectContent>

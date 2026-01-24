@@ -32,9 +32,11 @@ export default function Dashboard() {
   const { data: studentCount = 0 } = useQuery({
     queryKey: ["dashboard-student-count", user.role],
     queryFn: async () => {
-      const { data, error } = await supabase.from("students").select("id");
+      const { count, error } = await supabase
+        .from("students")
+        .select("id", { count: "exact", head: true });
       if (error) throw error;
-      return data?.length || 0;
+      return count || 0;
     },
     enabled: user.role === "admin" || user.role === "bursar",
   });
@@ -42,9 +44,11 @@ export default function Dashboard() {
   const { data: classCount = 0 } = useQuery({
     queryKey: ["dashboard-class-count"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("classes").select("id");
+      const { count, error } = await supabase
+        .from("classes")
+        .select("id", { count: "exact", head: true });
       if (error) throw error;
-      return data?.length || 0;
+      return count || 0;
     },
     enabled: user.role === "admin",
   });
@@ -131,13 +135,13 @@ export default function Dashboard() {
     queryKey: ["teacher-student-count", teacherClassIds],
     queryFn: async () => {
       if (!teacherClassIds.length) return 0;
-      const { data, error } = await supabase
+      const { count, error } = await supabase
         .from("students")
-        .select("id", { count: "exact" })
+        .select("id", { count: "exact", head: true })
         .in("class_id", teacherClassIds)
         .eq("status", "active");
       if (error) throw error;
-      return data?.length || 0;
+      return count || 0;
     },
     enabled: user.role === "teacher",
   });
@@ -165,13 +169,13 @@ export default function Dashboard() {
     queryKey: ["teacher-assessments-week", teacherClassIds, assessmentWeekDate],
     queryFn: async () => {
       if (!teacherClassIds.length) return 0;
-      const { data, error } = await supabase
+      const { count, error } = await supabase
         .from("assessments")
-        .select("id")
+        .select("id", { count: "exact", head: true })
         .in("class_id", teacherClassIds)
         .gte("created_at", assessmentWeekDate);
       if (error) throw error;
-      return data?.length || 0;
+      return count || 0;
     },
     enabled: user.role === "teacher",
   });
@@ -180,13 +184,13 @@ export default function Dashboard() {
     queryKey: ["parent-notices", user.role],
     queryFn: async () => {
       if (user.role !== "parent") return 0;
-      const { data, error } = await supabase
+      const { count, error } = await supabase
         .from("notices")
-        .select("id")
+        .select("id", { count: "exact", head: true })
         .eq("published", true)
         .overlaps("target_audience", ["parents", "all"]);
       if (error) throw error;
-      return data?.length || 0;
+      return count || 0;
     },
     enabled: user.role === "parent",
   });

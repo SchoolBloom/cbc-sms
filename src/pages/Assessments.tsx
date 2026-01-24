@@ -2,7 +2,9 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FileText, TrendingUp, Star, Eye, Loader2 } from "lucide-react";
+import { useState } from "react";
 import { useRole } from "@/contexts/RoleContext";
 import { useAssessments, useStudentAssessments, LEARNING_AREAS, PERFORMANCE_LEVELS } from "@/hooks/useAssessments";
 import { AddAssessmentDialog } from "@/components/assessments/AddAssessmentDialog";
@@ -10,6 +12,7 @@ import { AddAssessmentDialog } from "@/components/assessments/AddAssessmentDialo
 export default function Assessments() {
   const { user, selectedChildId, setSelectedChildId, hasPermission } = useRole();
   const canWrite = hasPermission("assessments:write");
+  const [selectedAssessment, setSelectedAssessment] = useState<any | null>(null);
   const selectedChild = user.children?.find((child) => child.id === selectedChildId);
   const childInitials = selectedChild?.full_name
     ? selectedChild.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2)
@@ -19,6 +22,11 @@ export default function Assessments() {
   const { data: studentAssessments } = useStudentAssessments(
     user.role === "parent" ? selectedChildId || undefined : undefined
   );
+
+  const getPerformanceCode = (level?: string | null) =>
+    PERFORMANCE_LEVELS.find((item) => item.level === level)?.code || level || "N/A";
+  const getPerformanceLabel = (level?: string | null) =>
+    PERFORMANCE_LEVELS.find((item) => item.level === level)?.name || "Performance";
 
   // Parent view
   if (user.role === "parent") {
@@ -102,7 +110,7 @@ export default function Assessments() {
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium text-foreground">{assessment.learning_area}</span>
                     <Badge className={PERFORMANCE_LEVELS.find(p => p.level === assessment.performance_level)?.color}>
-                      {assessment.performance_level}
+                      {getPerformanceCode(assessment.performance_level)}
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">{assessment.comments || "No comments"}</p>
@@ -188,9 +196,17 @@ export default function Assessments() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge className={PERFORMANCE_LEVELS.find(p => p.level === assessment.performance_level)?.color}>
-                        {assessment.performance_level}
+                        {getPerformanceCode(assessment.performance_level)}
                       </Badge>
-                      <Button variant="ghost" size="sm"><Eye className="w-4 h-4" /></Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedAssessment(assessment)}
+                        aria-label="View assessment details"
+                        title="View assessment details"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -203,6 +219,81 @@ export default function Assessments() {
           </div>
         </div>
       </div>
+
+      <Dialog open={!!selectedAssessment} onOpenChange={(open) => !open && setSelectedAssessment(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Assessment Details</DialogTitle>
+          </DialogHeader>
+          {selectedAssessment && (
+            <div className="space-y-4 text-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">Student</p>
+                  <p className="font-medium text-foreground">
+                    {selectedAssessment.student?.full_name || "Unknown"}
+                  </p>
+                </div>
+                <Badge className={PERFORMANCE_LEVELS.find(p => p.level === selectedAssessment.performance_level)?.color}>
+                  {getPerformanceCode(selectedAssessment.performance_level)}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Learning Area</p>
+                  <p className="font-medium text-foreground">{selectedAssessment.learning_area}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Performance</p>
+                  <p className="font-medium text-foreground">{getPerformanceLabel(selectedAssessment.performance_level)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Class</p>
+                  <p className="font-medium text-foreground">
+                    {selectedAssessment.class
+                      ? `${selectedAssessment.class.grade} ${selectedAssessment.class.stream}`
+                      : "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Assessment Type</p>
+                  <p className="font-medium text-foreground">{selectedAssessment.assessment_type}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Strand</p>
+                  <p className="font-medium text-foreground">{selectedAssessment.strand || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Score</p>
+                  <p className="font-medium text-foreground">{selectedAssessment.score ?? "-"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Term</p>
+                  <p className="font-medium text-foreground">{selectedAssessment.term}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Academic Year</p>
+                  <p className="font-medium text-foreground">{selectedAssessment.academic_year}</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Comments</p>
+                <p className="text-foreground">{selectedAssessment.comments || "No comments"}</p>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Recorded on{" "}
+                {selectedAssessment.created_at
+                  ? new Date(selectedAssessment.created_at).toLocaleDateString("en-KE", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })
+                  : "N/A"}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
