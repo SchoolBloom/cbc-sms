@@ -5,63 +5,52 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-import { Parent, useUpdateParent } from "@/hooks/useParents";
+import { Teacher, useUpdateTeacher } from "@/hooks/useTeachers";
 
-const parentSchema = z.object({
+const teacherSchema = z.object({
   full_name: z.string().min(2, "Name must be at least 2 characters").max(100),
-  phone: z.string().min(10, "Please enter a valid phone number").max(20),
+  phone: z.string().min(10, "Please enter a valid phone number").max(20).optional().or(z.literal("")),
   email: z.string().email("Please enter a valid email").optional().or(z.literal("")),
-  address: z.string().max(200).optional(),
-  occupation: z.string().max(100).optional(),
 });
 
-type ParentFormData = z.infer<typeof parentSchema>;
+type TeacherFormData = z.infer<typeof teacherSchema>;
 
-interface EditParentDialogProps {
-  parent: Parent | null;
+interface EditTeacherDialogProps {
+  teacher: Teacher | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function EditParentDialog({ parent, open, onOpenChange }: EditParentDialogProps) {
-  const updateParent = useUpdateParent();
-  const form = useForm<ParentFormData>({
-    resolver: zodResolver(parentSchema),
+export function EditTeacherDialog({ teacher, open, onOpenChange }: EditTeacherDialogProps) {
+  const updateTeacher = useUpdateTeacher();
+  const form = useForm<TeacherFormData>({
+    resolver: zodResolver(teacherSchema),
     defaultValues: {
       full_name: "",
       phone: "",
       email: "",
-      address: "",
-      occupation: "",
     },
   });
 
   useEffect(() => {
-    if (!parent) return;
+    if (!teacher) return;
     form.reset({
-      full_name: parent.full_name,
-      phone: parent.phone,
-      email: parent.email || "",
-      address: parent.address || "",
-      occupation: parent.occupation || "",
+      full_name: teacher.full_name,
+      phone: teacher.phone || "",
+      email: teacher.email || "",
     });
-  }, [form, parent]);
+  }, [form, teacher]);
 
-  const onSubmit = (data: ParentFormData) => {
-    if (!parent) return;
-    updateParent.mutate(
+  const onSubmit = (data: TeacherFormData) => {
+    if (!teacher) return;
+    updateTeacher.mutate(
       {
-        id: parent.id,
-        userId: parent.user_id,
-        email: parent.email,
+        userId: teacher.user_id,
         updates: {
           full_name: data.full_name.trim(),
-          phone: data.phone.trim(),
-          address: data.address?.trim() || null,
-          occupation: data.occupation?.trim() || null,
+          phone: data.phone?.trim() || null,
         },
       },
       {
@@ -70,13 +59,13 @@ export function EditParentDialog({ parent, open, onOpenChange }: EditParentDialo
     );
   };
 
-  if (!parent) return null;
+  if (!teacher) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[450px]">
+      <DialogContent className="sm:max-w-[420px]">
         <DialogHeader>
-          <DialogTitle>Edit Parent</DialogTitle>
+          <DialogTitle>Edit Teacher</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -99,7 +88,7 @@ export function EditParentDialog({ parent, open, onOpenChange }: EditParentDialo
               name="phone"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Phone Number *</FormLabel>
+                  <FormLabel>Phone Number</FormLabel>
                   <FormControl>
                     <Input placeholder="+254 712 345 678" {...field} />
                   </FormControl>
@@ -115,39 +104,7 @@ export function EditParentDialog({ parent, open, onOpenChange }: EditParentDialo
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="mary@email.com" {...field} disabled />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="occupation"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Occupation</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Teacher, Farmer, etc." {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="address"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Address</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="P.O. Box 123, Nairobi"
-                      className="resize-none"
-                      {...field}
-                    />
+                    <Input type="email" placeholder="teacher@email.com" {...field} disabled />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -158,8 +115,8 @@ export function EditParentDialog({ parent, open, onOpenChange }: EditParentDialo
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={updateParent.isPending}>
-                {updateParent.isPending ? (
+              <Button type="submit" disabled={updateTeacher.isPending}>
+                {updateTeacher.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Saving...

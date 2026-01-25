@@ -139,9 +139,13 @@ export function useUpdateParent() {
   return useMutation({
     mutationFn: async ({
       id,
+      userId,
+      email,
       updates,
     }: {
       id: string;
+      userId?: string | null;
+      email?: string | null;
       updates: {
         full_name?: string;
         phone?: string;
@@ -152,6 +156,50 @@ export function useUpdateParent() {
     }) => {
       const { error } = await supabase.from("parents").update(updates).eq("id", id);
       if (error) throw error;
+
+      const profileUpdates: {
+        full_name?: string;
+        phone?: string | null;
+        email?: string | null;
+      } = {};
+
+      if (updates.full_name) profileUpdates.full_name = updates.full_name;
+      if (updates.phone) profileUpdates.phone = updates.phone;
+      if (updates.email !== undefined) profileUpdates.email = updates.email;
+
+      if (Object.keys(profileUpdates).length === 0) return;
+
+      if (userId) {
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .update(profileUpdates)
+          .eq("user_id", userId);
+        if (profileError) throw profileError;
+        return;
+      }
+
+      if (email) {
+        const normalizedEmail = email.trim().toLowerCase();
+        const { data: profile, error: profileLookupError } = await supabase
+          .from("profiles")
+          .select("user_id")
+          .ilike("email", normalizedEmail)
+          .maybeSingle();
+        if (profileLookupError) throw profileLookupError;
+        if (profile) {
+          const { error: profileError } = await supabase
+            .from("profiles")
+            .update(profileUpdates)
+            .eq("user_id", profile.user_id);
+          if (profileError) throw profileError;
+
+          const { error: parentUpdateError } = await supabase
+            .from("parents")
+            .update({ user_id: profile.user_id, email: normalizedEmail })
+            .eq("id", id);
+          if (parentUpdateError) throw parentUpdateError;
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["parents"] });

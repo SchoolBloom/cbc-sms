@@ -69,6 +69,9 @@ export function AddTeacherDialog({ trigger }: AddTeacherDialogProps) {
       if (data.full_name?.trim()) profileUpdates.full_name = data.full_name.trim();
       if (data.phone?.trim()) profileUpdates.phone = data.phone.trim();
 
+      const finalFullName = profileUpdates.full_name || profile.full_name;
+      const finalPhone = profileUpdates.phone || profile.phone;
+
       if (Object.keys(profileUpdates).length > 0) {
         const { error: updateError } = await supabase
           .from("profiles")
@@ -95,6 +98,19 @@ export function AddTeacherDialog({ trigger }: AddTeacherDialogProps) {
           });
         if (roleError) throw roleError;
       }
+
+      const { error: teacherError } = await supabase
+        .from("teachers")
+        .upsert(
+          {
+            user_id: profile.user_id,
+            full_name: finalFullName || normalizedEmail,
+            email: profile.email || normalizedEmail,
+            phone: finalPhone || profile.phone || null,
+          },
+          { onConflict: "user_id" }
+        );
+      if (teacherError) throw teacherError;
     },
     onSuccess: () => {
       toast.success("Teacher added successfully");

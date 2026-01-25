@@ -3,7 +3,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Phone, Mail, Users, Loader2, MoreHorizontal, Eye, Trash2, ArrowLeftRight } from "lucide-react";
+import { Search, Phone, Mail, Users, Loader2, MoreHorizontal, Eye, Trash2, ArrowLeftRight, Edit } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -27,11 +27,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useDeleteTeacher, useTeachers, useTransferTeacher, Teacher } from "@/hooks/useTeachers";
 import { AddTeacherDialog } from "@/components/teachers/AddTeacherDialog";
 import { TeacherProfileDialog } from "@/components/teachers/TeacherProfileDialog";
+import { EditTeacherDialog } from "@/components/teachers/EditTeacherDialog";
 
 export default function Teachers() {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [viewTeacher, setViewTeacher] = useState<Teacher | null>(null);
+  const [editTeacher, setEditTeacher] = useState<Teacher | null>(null);
 
   const { data: teachers = [], isLoading, error } = useTeachers();
   const deleteTeacher = useDeleteTeacher();
@@ -190,6 +192,11 @@ export default function Teachers() {
                           <Eye className="w-4 h-4" /> View Details
                         </DropdownMenuItem>
                         {canWrite && (
+                          <DropdownMenuItem className="gap-2" onClick={() => setEditTeacher(teacher)}>
+                            <Edit className="w-4 h-4" /> Edit
+                          </DropdownMenuItem>
+                        )}
+                        {canWrite && (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <DropdownMenuItem
@@ -271,16 +278,6 @@ export default function Teachers() {
                   </div>
                 </div>
               </div>
-              <div className="mt-4 flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1 gap-2">
-                  <Phone className="w-3 h-3" />
-                  Call
-                </Button>
-                <Button variant="outline" size="sm" className="flex-1 gap-2">
-                  <Mail className="w-3 h-3" />
-                  Message
-                </Button>
-              </div>
               <div className="mt-4 pt-4 border-t border-border">
                 <Badge variant="secondary" className="text-xs">
                   Teacher
@@ -297,6 +294,11 @@ export default function Teachers() {
         onOpenChange={(open) => !open && setViewTeacher(null)}
         classes={viewTeacher ? classesByTeacher.get(viewTeacher.user_id) || [] : []}
         subjects={viewTeacher ? subjectsByTeacher.get(viewTeacher.user_id) || [] : []}
+      />
+      <EditTeacherDialog
+        teacher={editTeacher}
+        open={!!editTeacher}
+        onOpenChange={(open) => !open && setEditTeacher(null)}
       />
     </DashboardLayout>
   );

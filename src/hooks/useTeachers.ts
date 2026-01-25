@@ -15,42 +15,57 @@ export function useTeachers() {
   return useQuery({
     queryKey: ["teachers"],
     queryFn: async () => {
-      const { data: roleRows, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "teacher");
-
-      if (rolesError) throw rolesError;
-
-      const userIds = roleRows?.map((row) => row.user_id) || [];
-
-      if (userIds.length === 0) {
-        return [] as Teacher[];
-      }
-
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
+      const { data, error } = await supabase
+        .from("teachers")
         .select("id, user_id, full_name, email, phone, created_at")
-        .in("user_id", userIds)
         .order("full_name");
 
-      if (profilesError) throw profilesError;
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}
 
-      const profileMap = new Map(
-        (profiles || []).map((profile) => [profile.user_id, profile])
-      );
+export function useUpdateTeacher() {
+  const queryClient = useQueryClient();
 
-      return userIds.map((user_id) => {
-        const profile = profileMap.get(user_id);
-        return {
-          id: profile?.id || user_id,
-          user_id,
-          full_name: profile?.full_name || "Unknown Teacher",
-          email: profile?.email || null,
-          phone: profile?.phone || null,
-          created_at: profile?.created_at || new Date().toISOString(),
-        };
-      });
+  return useMutation({
+    mutationFn: async ({
+      userId,
+      updates,
+    }: {
+      userId: string;
+      updates: {
+        full_name?: string;
+        email?: string | null;
+        phone?: string | null;
+      };
+    }) => {
+      const { error } = await supabase.from("profiles").update(updates).eq("user_id", userId);
+      if (error) throw error;
+
+      if (updates.full_name) {
+        const { error: teacherError } = await supabase
+          .from("teachers")
+          .upsert(
+            {
+              user_id: userId,
+              full_name: updates.full_name,
+              email: updates.email ?? null,
+              phone: updates.phone ?? null,
+            },
+            { onConflict: "user_id" }
+          );
+        if (teacherError) throw teacherError;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["teachers"] });
+      toast.success("Teacher updated successfully");
+    },
+    onError: (error) => {
+      console.error("Error updating teacher:", error);
+      toast.error("Failed to update teacher");
     },
   });
 }
@@ -60,6 +75,12 @@ export function useDeleteTeacher() {
 
   return useMutation({
     mutationFn: async (userId: string) => {
+      const { error: teacherError } = await supabase
+        .from("teachers")
+        .delete()
+        .eq("user_id", userId);
+      if (teacherError) throw teacherError;
+
       const { error } = await supabase
         .from("user_roles")
         .delete()
@@ -90,6 +111,12 @@ export function useTransferTeacher() {
         .eq("teacher_id", userId);
 
       if (classError) throw classError;
+
+      const { error: teacherError } = await supabase
+        .from("teachers")
+        .delete()
+        .eq("user_id", userId);
+      if (teacherError) throw teacherError;
 
       const { error } = await supabase
         .from("user_roles")

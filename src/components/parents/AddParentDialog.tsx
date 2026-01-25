@@ -57,14 +57,45 @@ export function AddParentDialog({ trigger }: AddParentDialogProps) {
 
   const createParent = useMutation({
     mutationFn: async (data: ParentFormData) => {
-      const { error } = await supabase.from("parents").insert({
-        full_name: data.full_name.trim(),
-        phone: data.phone.trim(),
-        email: data.email?.trim() || null,
-        address: data.address?.trim() || null,
-        occupation: data.occupation?.trim() || null,
-      });
+      const normalizedEmail = data.email?.trim().toLowerCase() || null;
+      const { data: parentRow, error } = await supabase
+        .from("parents")
+        .insert({
+          full_name: data.full_name.trim(),
+          phone: data.phone.trim(),
+        email: normalizedEmail,
+          address: data.address?.trim() || null,
+          occupation: data.occupation?.trim() || null,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
+
+      if (normalizedEmail && parentRow?.id) {
+        const { data: profile, error: profileLookupError } = await supabase
+          .from("profiles")
+          .select("user_id")
+          .ilike("email", normalizedEmail)
+          .maybeSingle();
+        if (profileLookupError) throw profileLookupError;
+        if (profile) {
+          const { error: profileError } = await supabase
+            .from("profiles")
+            .update({
+              full_name: data.full_name.trim(),
+              phone: data.phone.trim(),
+              email: normalizedEmail,
+            })
+            .eq("user_id", profile.user_id);
+          if (profileError) throw profileError;
+
+          const { error: parentUpdateError } = await supabase
+            .from("parents")
+            .update({ user_id: profile.user_id, email: normalizedEmail })
+            .eq("id", parentRow.id);
+          if (parentUpdateError) throw parentUpdateError;
+        }
+      }
     },
     onSuccess: () => {
       toast.success("Parent/Guardian added successfully");

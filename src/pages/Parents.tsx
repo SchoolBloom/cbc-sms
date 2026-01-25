@@ -236,16 +236,6 @@ export default function Parents() {
                   </div>
                 </div>
               )}
-              <div className="mt-4 flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1 gap-2">
-                  <Phone className="w-3 h-3" />
-                  Call
-                </Button>
-                <Button variant="outline" size="sm" className="flex-1 gap-2">
-                  <Mail className="w-3 h-3" />
-                  Message
-                </Button>
-              </div>
             </div>
           ))}
         </div>
