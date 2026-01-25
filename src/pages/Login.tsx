@@ -137,7 +137,7 @@ export default function Login() {
                       <Input
                         id="login-email"
                         type="email"
-                        placeholder="you@school.com"
+                        placeholder="you@example.com"
                         value={loginEmail}
                         onChange={(e) => setLoginEmail(e.target.value)}
                         required
@@ -149,7 +149,7 @@ export default function Login() {
                         <Input
                           id="login-password"
                           type={showLoginPassword ? "text" : "password"}
-                          placeholder="••••••••"
+                          placeholder="Password"
                           value={loginPassword}
                           onChange={(e) => setLoginPassword(e.target.value)}
                           required
@@ -185,7 +185,7 @@ export default function Login() {
                       <Input
                         id="signup-name"
                         type="text"
-                        placeholder="John Mwangi"
+                        placeholder="Sanaet Memusi"
                         value={signupName}
                         onChange={(e) => setSignupName(e.target.value)}
                         required
@@ -196,7 +196,7 @@ export default function Login() {
                       <Input
                         id="signup-email"
                         type="email"
-                        placeholder="you@school.com"
+                        placeholder="you@example.com"
                         value={signupEmail}
                         onChange={(e) => setSignupEmail(e.target.value)}
                         required
@@ -208,7 +208,7 @@ export default function Login() {
                         <Input
                           id="signup-password"
                           type={showSignupPassword ? "text" : "password"}
-                          placeholder="••••••••"
+                          placeholder="Password"
                           value={signupPassword}
                           onChange={(e) => setSignupPassword(e.target.value)}
                           required
@@ -231,7 +231,7 @@ export default function Login() {
                         <Input
                           id="signup-confirm-password"
                           type={showSignupConfirmPassword ? "text" : "password"}
-                          placeholder="••••••••"
+                          placeholder="Password"
                           value={signupConfirmPassword}
                           onChange={(e) => setSignupConfirmPassword(e.target.value)}
                           required
