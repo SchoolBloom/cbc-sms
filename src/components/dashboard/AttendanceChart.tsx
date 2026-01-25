@@ -47,9 +47,7 @@ export function AttendanceChart({ classIds, title = "Weekly Attendance" }: Atten
 
   const chartData = recentDays.map((day) => {
     const records = attendanceData?.filter((record) => record.date === day.date) || [];
-    const present = records.filter(
-      (record) => record.status === "present" || record.status === "late" || record.status === "excused"
-    ).length;
+    const present = records.filter((record) => record.status !== "absent").length;
     const absent = records.filter((record) => record.status === "absent").length;
     return { name: day.label, present, absent };
   });

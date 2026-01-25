@@ -164,7 +164,7 @@ export default function Fees() {
           {canCollect && <AddFeeScheduleDialog />}
         </div>
         {feeSchedules.length > 0 ? (
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-4 max-h-[320px] overflow-auto pr-1">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground">

@@ -6,16 +6,57 @@ import { toast } from "sonner";
 export type Assessment = Tables<"assessments">;
 export type AssessmentInsert = TablesInsert<"assessments">;
 
-export const LEARNING_AREAS = [
-  "Mathematics",
-  "English",
-  "Kiswahili",
-  "Science & Technology",
-  "Social Studies",
-  "Religious Education",
-  "Creative Arts",
-  "Physical & Health Education",
-];
+export const LEARNING_AREAS_BY_LEVEL = {
+  prePrimary: [
+    "Language Activities",
+    "Mathematical Activities",
+    "Environmental Activities",
+    "Psychomotor and Creative Activities",
+    "Religious Education Activities",
+  ],
+  lowerPrimary: [
+    "Kiswahili",
+    "English",
+    "Mathematics",
+    "Religious Education",
+    "Environmental Activities",
+    "Creative Activities",
+  ],
+  upperPrimary: [
+    "English",
+    "Kiswahili",
+    "Mathematics",
+    "Science and Technology",
+    "Social Studies",
+    "Home Science",
+    "Agriculture",
+    "Creative Arts",
+    "Physical and Health Education",
+    "Religious Education",
+  ],
+  juniorSecondary: [
+    "English",
+    "Kiswahili",
+    "Mathematics",
+    "Integrated Science",
+    "Pre-Technical Studies",
+    "Social Studies",
+    "Business Studies",
+    "Agriculture",
+    "Life Skills Education",
+    "Physical Education and Sports",
+    "Religious Education",
+  ],
+};
+
+export const LEARNING_AREAS = Array.from(
+  new Set([
+    ...LEARNING_AREAS_BY_LEVEL.prePrimary,
+    ...LEARNING_AREAS_BY_LEVEL.lowerPrimary,
+    ...LEARNING_AREAS_BY_LEVEL.upperPrimary,
+    ...LEARNING_AREAS_BY_LEVEL.juniorSecondary,
+  ])
+);
 
 export const PERFORMANCE_LEVELS = [
   { level: "exceeds", code: "EE", name: "Exceeding Expectations", color: "bg-success text-success-foreground" },

@@ -1,8 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -10,7 +9,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,16 +24,14 @@ import { BookOpen, Link2Off, Loader2, PlusCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTeachers } from "@/hooks/useTeachers";
 import {
-  useCreateSubject,
   useCreateSubjectAssignment,
   useDeleteSubjectAssignment,
   useSubjectAssignments,
   useSubjects,
 } from "@/hooks/useSubjects";
+import { LEARNING_AREAS, LEARNING_AREAS_BY_LEVEL } from "@/hooks/useAssessments";
 
-export default function Subjects() {
-  const [subjectName, setSubjectName] = useState("");
-  const [subjectCode, setSubjectCode] = useState("");
+export default function Assignments() {
   const [selectedSubjectId, setSelectedSubjectId] = useState("");
   const [selectedClassId, setSelectedClassId] = useState("");
   const [selectedTeacherId, setSelectedTeacherId] = useState("");
@@ -58,24 +54,28 @@ export default function Subjects() {
     },
   });
 
-  const createSubject = useCreateSubject();
   const createAssignment = useCreateSubjectAssignment();
   const deleteAssignment = useDeleteSubjectAssignment();
 
-  const assignmentsBySubject = useMemo(() => {
-    const map = new Map<string, number>();
-    assignments.forEach((assignment) => {
-      map.set(assignment.subject_id, (map.get(assignment.subject_id) || 0) + 1);
-    });
-    return map;
-  }, [assignments]);
+  const cbcSubjects = useMemo(() => {
+    const subjectByName = new Map(subjects.map((subject) => [subject.name, subject]));
+    return LEARNING_AREAS.map((name) => subjectByName.get(name)).filter(
+      (subject): subject is (typeof subjects)[number] => Boolean(subject)
+    );
+  }, [subjects]);
 
-  const handleAddSubject = () => {
-    if (!subjectName.trim()) return;
-    createSubject.mutate({ name: subjectName, code: subjectCode });
-    setSubjectName("");
-    setSubjectCode("");
-  };
+  const learningAreaGroups = [
+    { title: "Pre-Primary (PP1 & PP2)", items: LEARNING_AREAS_BY_LEVEL.prePrimary },
+    { title: "Lower Primary (Grades 1–3)", items: LEARNING_AREAS_BY_LEVEL.lowerPrimary },
+    { title: "Upper Primary (Grades 4–6)", items: LEARNING_AREAS_BY_LEVEL.upperPrimary },
+    { title: "Junior Secondary (Grades 7–9)", items: LEARNING_AREAS_BY_LEVEL.juniorSecondary },
+  ];
+
+  useEffect(() => {
+    if (!selectedSubjectId) return;
+    const isValid = cbcSubjects.some((subject) => subject.id === selectedSubjectId);
+    if (!isValid) setSelectedSubjectId("");
+  }, [cbcSubjects, selectedSubjectId]);
 
   const handleAssign = () => {
     if (!selectedSubjectId || !selectedClassId || !selectedTeacherId) return;
@@ -93,8 +93,8 @@ export default function Subjects() {
     <DashboardLayout>
       <div className="page-header">
         <div>
-          <h1 className="page-title font-display">Subjects</h1>
-          <p className="page-subtitle">Manage subjects and assign teachers to classes</p>
+          <h1 className="page-title font-display">Assignments</h1>
+          <p className="page-subtitle">Assign learning areas to classes and teachers</p>
         </div>
       </div>
 
@@ -103,78 +103,40 @@ export default function Subjects() {
           <div className="bg-card rounded-xl border border-border/50 p-5 space-y-4">
             <div className="flex items-center gap-2">
               <BookOpen className="w-5 h-5 text-primary" />
-              <h2 className="font-display font-semibold text-foreground">Add Subject</h2>
+              <h2 className="font-display font-semibold text-foreground">Learning Areas</h2>
             </div>
-            <div className="space-y-3">
-              <Input
-                placeholder="Subject name"
-                value={subjectName}
-                onChange={(e) => setSubjectName(e.target.value)}
-              />
-              <Input
-                placeholder="Code (optional)"
-                value={subjectCode}
-                onChange={(e) => setSubjectCode(e.target.value)}
-              />
-              <Button
-                className="w-full gap-2"
-                onClick={handleAddSubject}
-                disabled={!subjectName.trim() || createSubject.isPending}
-              >
-                {createSubject.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Adding...
-                  </>
-                ) : (
-                  <>
-                    <PlusCircle className="w-4 h-4" />
-                    Add Subject
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-
-          <div className="bg-card rounded-xl border border-border/50 p-5">
-            <h2 className="font-display font-semibold text-foreground mb-4">Subjects</h2>
-            {subjectsLoading ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Loading subjects...
-              </div>
-            ) : subjects.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No subjects yet.</p>
-            ) : (
-              <div className="space-y-3">
-                {subjects.map((subject) => (
-                  <div key={subject.id} className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-foreground">{subject.name}</p>
-                      {subject.code && (
-                        <p className="text-xs text-muted-foreground">Code: {subject.code}</p>
-                      )}
-                    </div>
-                    <Badge variant="secondary">
-                      {assignmentsBySubject.get(subject.id) || 0} assignments
-                    </Badge>
+            <div className="space-y-4 max-h-[520px] overflow-y-auto pr-1">
+              {learningAreaGroups.map((group) => (
+                <div key={group.title} className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {group.title}
+                  </p>
+                  <div className="space-y-2">
+                    {group.items.map((area) => (
+                      <div
+                        key={area}
+                        className="flex items-center gap-3 rounded-lg bg-muted/50 px-3 py-2"
+                      >
+                        <span className="text-sm text-foreground">{area}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-card rounded-xl border border-border/50 p-5 space-y-4">
-            <h2 className="font-display font-semibold text-foreground">Assign Subject</h2>
+            <h2 className="font-display font-semibold text-foreground">Assign Learning Area</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <Select value={selectedSubjectId} onValueChange={setSelectedSubjectId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select subject" />
+                  <SelectValue placeholder={subjectsLoading ? "Loading subjects..." : "Select learning area"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {subjects.map((subject) => (
+                  {cbcSubjects.map((subject) => (
                     <SelectItem key={subject.id} value={subject.id}>
                       {subject.name}
                     </SelectItem>
@@ -231,6 +193,11 @@ export default function Subjects() {
             {(classesLoading || teachersLoading) && (
               <p className="text-xs text-muted-foreground">
                 Loading teachers and classes...
+              </p>
+            )}
+            {!subjectsLoading && cbcSubjects.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                No CBC learning areas are available for assignments.
               </p>
             )}
           </div>

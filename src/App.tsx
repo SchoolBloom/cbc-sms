@@ -16,7 +16,7 @@ import Teachers from "./pages/Teachers";
 import Notices from "./pages/Notices";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
-import Subjects from "./pages/Subjects";
+import Assignments from "./pages/Assignments";
 import CalendarPage from "./pages/Calendar";
 import Login from "./pages/Login";
 import AwaitingAllocation from "./pages/AwaitingAllocation";
@@ -139,7 +139,8 @@ function AppRoutes() {
       <Route path="/notices" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent"]}><Notices /></RoleProtectedRoute>} />
       <Route path="/calendar" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent", "bursar"]}><CalendarPage /></RoleProtectedRoute>} />
       <Route path="/reports" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent", "bursar"]}><Reports /></RoleProtectedRoute>} />
-      <Route path="/subjects" element={<RoleProtectedRoute allowedRoles={["admin"]}><Subjects /></RoleProtectedRoute>} />
+      <Route path="/assignments" element={<RoleProtectedRoute allowedRoles={["admin"]}><Assignments /></RoleProtectedRoute>} />
+      <Route path="/subjects" element={<Navigate to="/assignments" replace />} />
       <Route path="/settings" element={<RoleProtectedRoute allowedRoles={["admin"]}><Settings /></RoleProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>

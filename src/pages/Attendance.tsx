@@ -9,14 +9,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Check, X, Clock, TrendingUp, Loader2 } from "lucide-react";
+import { Calendar, Check, X, TrendingUp, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/contexts/RoleContext";
 import { useClasses } from "@/hooks/useClasses";
 import { useStudents } from "@/hooks/useStudents";
 import { useAttendance, useSaveAttendance, useStudentAttendanceHistory } from "@/hooks/useAttendance";
 
-type AttendanceStatus = "present" | "absent" | "late" | null;
+type AttendanceStatus = "present" | "absent" | null;
 
 export default function Attendance() {
   const { user, selectedChildId, setSelectedChildId, hasPermission } = useRole();
@@ -79,13 +79,12 @@ export default function Attendance() {
 
   const presentCount = Object.values(attendance).filter((s) => s === "present").length;
   const absentCount = Object.values(attendance).filter((s) => s === "absent").length;
-  const lateCount = Object.values(attendance).filter((s) => s === "late").length;
 
   // Parent view - shows child's attendance
   if (user.role === "parent") {
-    const attendanceRate = attendanceHistory?.length
-      ? Math.round((attendanceHistory.filter((a) => a.status === "present").length / attendanceHistory.length) * 100)
-      : 0;
+    const totalRecords = attendanceHistory?.length || 0;
+    const presentRecords = attendanceHistory?.filter((a) => a.status !== "absent").length || 0;
+    const attendanceRate = totalRecords ? Math.round((presentRecords / totalRecords) * 100) : 0;
 
     return (
       <DashboardLayout>
@@ -143,18 +142,12 @@ export default function Attendance() {
         </div>
 
         {/* Monthly Summary */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="bg-success/10 rounded-xl p-4 text-center">
             <p className="text-2xl font-bold text-success">
-              {attendanceHistory?.filter((a) => a.status === "present").length || 0}
+              {attendanceHistory?.filter((a) => a.status !== "absent").length || 0}
             </p>
             <p className="text-sm text-muted-foreground">Present</p>
-          </div>
-          <div className="bg-warning/10 rounded-xl p-4 text-center">
-            <p className="text-2xl font-bold text-warning">
-              {attendanceHistory?.filter((a) => a.status === "late").length || 0}
-            </p>
-            <p className="text-sm text-muted-foreground">Late</p>
           </div>
           <div className="bg-destructive/10 rounded-xl p-4 text-center">
             <p className="text-2xl font-bold text-destructive">
@@ -186,12 +179,11 @@ export default function Attendance() {
                 <Badge
                   variant="outline"
                   className={cn(
-                    record.status === "present" && "bg-success/10 text-success border-success/20",
-                    record.status === "late" && "bg-warning/10 text-warning border-warning/20",
+                    record.status !== "absent" && "bg-success/10 text-success border-success/20",
                     record.status === "absent" && "bg-destructive/10 text-destructive border-destructive/20"
                   )}
                 >
-                  {record.status}
+                  {record.status === "absent" ? "absent" : "present"}
                 </Badge>
               </div>
             ))}
@@ -239,7 +231,7 @@ export default function Attendance() {
               </SelectTrigger>
               <SelectContent>
                 {classesLoading ? (
-                  <SelectItem value="" disabled>Loading...</SelectItem>
+                  <SelectItem value="__loading__" disabled>Loading...</SelectItem>
                 ) : (
                   classes?.map((cls) => (
                     <SelectItem key={cls.id} value={cls.id}>
@@ -258,10 +250,6 @@ export default function Attendance() {
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-destructive" />
               <span className="text-muted-foreground">Absent: {absentCount}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-warning" />
-              <span className="text-muted-foreground">Late: {lateCount}</span>
             </div>
           </div>
         </div>
@@ -334,17 +322,6 @@ export default function Attendance() {
                           onClick={() => toggleAttendance(student.id, "absent")}
                         >
                           <X className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className={cn(
-                            "h-9 w-9 transition-all",
-                            status === "late" && "bg-warning text-warning-foreground border-warning hover:bg-warning/90"
-                          )}
-                          onClick={() => toggleAttendance(student.id, "late")}
-                        >
-                          <Clock className="w-4 h-4" />
                         </Button>
                       </>
                     )}

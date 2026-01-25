@@ -4,15 +4,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FileText, TrendingUp, Star, Eye, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRole } from "@/contexts/RoleContext";
-import { useAssessments, useStudentAssessments, LEARNING_AREAS, PERFORMANCE_LEVELS } from "@/hooks/useAssessments";
-import { AddAssessmentDialog } from "@/components/assessments/AddAssessmentDialog";
+import { useAssessments, useCreateAssessment, useStudentAssessments, LEARNING_AREAS, PERFORMANCE_LEVELS } from "@/hooks/useAssessments";
+import { useClasses } from "@/hooks/useClasses";
+import { useStudents } from "@/hooks/useStudents";
+import { useSubjectAssignments } from "@/hooks/useSubjects";
 
 export default function Assessments() {
   const { user, selectedChildId, setSelectedChildId, hasPermission } = useRole();
   const canWrite = hasPermission("assessments:write");
   const [selectedAssessment, setSelectedAssessment] = useState<any | null>(null);
+  const [classId, setClassId] = useState("");
+  const [studentId, setStudentId] = useState("");
+  const [learningArea, setLearningArea] = useState("");
+  const [performanceLevel, setPerformanceLevel] = useState("");
+  const [assessmentType, setAssessmentType] = useState("");
+  const [strand, setStrand] = useState("");
+  const [comments, setComments] = useState("");
   const selectedChild = user.children?.find((child) => child.id === selectedChildId);
   const childInitials = selectedChild?.full_name
     ? selectedChild.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2)
@@ -22,11 +31,120 @@ export default function Assessments() {
   const { data: studentAssessments } = useStudentAssessments(
     user.role === "parent" ? selectedChildId || undefined : undefined
   );
+  const { data: classes } = useClasses();
+  const { data: students } = useStudents();
+  const { data: subjectAssignments = [] } = useSubjectAssignments();
+  const createAssessment = useCreateAssessment();
 
   const getPerformanceCode = (level?: string | null) =>
     PERFORMANCE_LEVELS.find((item) => item.level === level)?.code || level || "N/A";
   const getPerformanceLabel = (level?: string | null) =>
     PERFORMANCE_LEVELS.find((item) => item.level === level)?.name || "Performance";
+
+  const allowedClassIds = useMemo(() => {
+    if (user.role !== "teacher") return null;
+
+    return new Set(
+      subjectAssignments
+        .filter((assignment) => assignment.teacher_id === user.id)
+        .map((assignment) => assignment.class_id)
+    );
+  }, [subjectAssignments, user.id, user.role]);
+
+  const filteredClasses = useMemo(() => {
+    if (!classes) return [];
+    if (!allowedClassIds) return classes;
+    return classes.filter((cls) => allowedClassIds.has(cls.id));
+  }, [allowedClassIds, classes]);
+
+  const filteredStudents = useMemo(() => {
+    if (!students) return [];
+    if (allowedClassIds) {
+      return students.filter((s) => allowedClassIds.has(s.class_id));
+    }
+    return students;
+  }, [allowedClassIds, students]);
+
+  const filteredStudentsByClass = filteredStudents.filter((s) => s.class_id === classId);
+
+  const allowedLearningAreas = useMemo(() => {
+    if (user.role !== "teacher") {
+      return LEARNING_AREAS;
+    }
+
+    const assignedSubjectNames = subjectAssignments
+      .filter((assignment) => assignment.teacher_id === user.id)
+      .filter((assignment) => (classId ? assignment.class_id === classId : true))
+      .map((assignment) => assignment.subject?.name)
+      .filter(Boolean) as string[];
+
+    const unique = Array.from(
+      new Set(assignedSubjectNames.map((name) => name.trim()).filter(Boolean))
+    );
+
+    return unique.sort((a, b) => a.localeCompare(b));
+  }, [classId, subjectAssignments, user.id, user.role]);
+
+  const learningAreaPlaceholder =
+    user.role === "teacher"
+      ? classId
+        ? allowedLearningAreas.length > 0
+          ? "Select learning area"
+          : "No assigned learning areas"
+        : "Select class first"
+      : "Select learning area";
+
+  useEffect(() => {
+    if (!learningArea) return;
+    if (!allowedLearningAreas.includes(learningArea)) {
+      setLearningArea("");
+    }
+  }, [allowedLearningAreas, learningArea]);
+
+  useEffect(() => {
+    if (!classId) return;
+    if (allowedClassIds && !allowedClassIds.has(classId)) {
+      setClassId("");
+      setStudentId("");
+    }
+  }, [allowedClassIds, classId]);
+
+  const handleSaveAssessment = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!canWrite) return;
+    if (user.role === "teacher" && !allowedLearningAreas.includes(learningArea)) {
+      return;
+    }
+
+    const currentYear = new Date().getFullYear().toString();
+    const currentTerm = 1;
+
+    createAssessment.mutate(
+      {
+        student_id: studentId,
+        class_id: classId,
+        learning_area: learningArea,
+        performance_level: performanceLevel,
+        assessment_type: assessmentType,
+        strand: strand || null,
+        comments: comments || null,
+        academic_year: currentYear,
+        term: currentTerm,
+        assessed_by: user.id,
+      },
+      {
+        onSuccess: () => {
+          setStudentId("");
+          setLearningArea("");
+          setPerformanceLevel("");
+          setAssessmentType("");
+          setStrand("");
+          setComments("");
+        },
+      }
+    );
+  };
 
   // Parent view
   if (user.role === "parent") {
@@ -136,7 +254,6 @@ export default function Assessments() {
             <h1 className="page-title font-display">CBC Assessments</h1>
             <p className="page-subtitle">{canWrite ? "Record and track student performance" : "View assessment records"}</p>
           </div>
-          {canWrite && <AddAssessmentDialog />}
         </div>
       </div>
 
@@ -154,22 +271,147 @@ export default function Assessments() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1">
-          <div className="bg-card rounded-xl border border-border/50 p-5">
-            <h3 className="font-display font-semibold text-foreground mb-4">Learning Areas</h3>
+      <div className="bg-card rounded-xl border border-border/50 p-5 mb-6">
+        <h3 className="font-display font-semibold text-foreground mb-4">Record Assessment</h3>
+        <form onSubmit={handleSaveAssessment} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              {LEARNING_AREAS.map((area) => (
-                <div key={area} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors cursor-pointer">
-                  <FileText className="w-4 h-4 text-primary" />
-                  <span className="text-sm font-medium text-foreground">{area}</span>
-                </div>
-              ))}
+              <label className="text-sm font-medium text-foreground">Class</label>
+              <Select value={classId} onValueChange={(v) => { setClassId(v); setStudentId(""); }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select class" />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredClasses.map((cls) => (
+                    <SelectItem key={cls.id} value={cls.id}>
+                      Grade {cls.grade} {cls.stream}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Student</label>
+              <Select value={studentId} onValueChange={setStudentId} disabled={!classId}>
+                <SelectTrigger>
+                  <SelectValue placeholder={classId ? "Select student" : "Select class first"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredStudentsByClass.map((student) => (
+                    <SelectItem key={student.id} value={student.id}>
+                      {student.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Learning Area</label>
+              <Select
+                value={learningArea}
+                onValueChange={setLearningArea}
+                disabled={user.role === "teacher" && (!classId || allowedLearningAreas.length === 0)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={learningAreaPlaceholder} />
+                </SelectTrigger>
+                <SelectContent>
+                  {allowedLearningAreas.map((area) => (
+                    <SelectItem key={area} value={area}>
+                      {area}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
-        </div>
 
-        <div className="lg:col-span-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Assessment Type</label>
+              <Select value={assessmentType} onValueChange={setAssessmentType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Formative">Formative Assessment</SelectItem>
+                  <SelectItem value="Summative">Summative Assessment</SelectItem>
+                  <SelectItem value="Project">Project Based</SelectItem>
+                  <SelectItem value="Portfolio">Portfolio</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Performance Level</label>
+              <Select value={performanceLevel} onValueChange={setPerformanceLevel}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select level" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PERFORMANCE_LEVELS.map((level) => (
+                    <SelectItem key={level.level} value={level.level}>
+                      {level.code} - {level.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Strand (Optional)</label>
+              <Select value={strand} onValueChange={setStrand}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select strand" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Numbers">Numbers</SelectItem>
+                  <SelectItem value="Measurement">Measurement</SelectItem>
+                  <SelectItem value="Geometry">Geometry</SelectItem>
+                  <SelectItem value="Data Handling">Data Handling</SelectItem>
+                  <SelectItem value="Algebra">Algebra</SelectItem>
+                  <SelectItem value="Listening & Speaking">Listening & Speaking</SelectItem>
+                  <SelectItem value="Reading">Reading</SelectItem>
+                  <SelectItem value="Writing">Writing</SelectItem>
+                  <SelectItem value="Grammar">Grammar</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Comments</label>
+            <textarea
+              value={comments}
+              onChange={(e) => setComments(e.target.value)}
+              placeholder="Teacher's comments on student performance..."
+              rows={3}
+              className="w-full rounded-lg border border-border/50 bg-background px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div className="flex justify-end">
+            <Button
+              type="submit"
+              disabled={
+                !canWrite ||
+                !studentId ||
+                !learningArea ||
+                !performanceLevel ||
+                !assessmentType ||
+                createAssessment.isPending
+              }
+            >
+              {createAssessment.isPending ? "Saving..." : "Save Assessment"}
+            </Button>
+          </div>
+        </form>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-3">
           <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
             <div className="px-5 py-4 border-b border-border">
               <h3 className="font-display font-semibold text-foreground">Recent Assessments</h3>

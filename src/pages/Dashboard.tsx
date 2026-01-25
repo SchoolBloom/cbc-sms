@@ -104,9 +104,7 @@ export default function Dashboard() {
       if (error) throw error;
       if (!data || data.length === 0) return 0;
 
-      const presentCount = data.filter(
-        (record) => record.status === "present" || record.status === "late" || record.status === "excused"
-      ).length;
+      const presentCount = data.filter((record) => record.status !== "absent").length;
       return Math.round((presentCount / data.length) * 100);
     },
     enabled: user.role === "admin",
@@ -157,9 +155,7 @@ export default function Dashboard() {
         .eq("date", today);
       if (error) throw error;
       if (!data || data.length === 0) return 0;
-      const presentCount = data.filter(
-        (record) => record.status === "present" || record.status === "late" || record.status === "excused"
-      ).length;
+      const presentCount = data.filter((record) => record.status !== "absent").length;
       return Math.round((presentCount / data.length) * 100);
     },
     enabled: user.role === "teacher",
@@ -284,9 +280,7 @@ export default function Dashboard() {
 
   const attendanceRate = attendanceHistory.length
     ? Math.round(
-        (attendanceHistory.filter((a) => a.status === "present" || a.status === "late" || a.status === "excused").length /
-          attendanceHistory.length) *
-          100
+        (attendanceHistory.filter((a) => a.status !== "absent").length / attendanceHistory.length) * 100
       )
     : 0;
   const totalFee = studentFees.reduce((sum, fee) => sum + Number(fee.amount), 0);
@@ -326,7 +320,7 @@ export default function Dashboard() {
   const getGreeting = () => {
     const hour = new Date().getHours();
     const timeGreeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-    return `${timeGreeting}, ${user.name.split(" ")[0]} 👋`;
+    return `${timeGreeting}, ${user.name.split(" ")[0]}`;
   };
 
   // Role-specific subtitle
@@ -649,14 +643,12 @@ export default function Dashboard() {
                       </p>
                       <div
                         className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center ${
-                          record.status === "present"
+                          record.status !== "absent"
                             ? "bg-success/10 text-success"
-                            : record.status === "late"
-                            ? "bg-warning/10 text-warning"
                             : "bg-destructive/10 text-destructive"
                         }`}
                       >
-                        {record.status === "present" ? "✓" : record.status === "late" ? "!" : "×"}
+                        {record.status === "absent" ? "×" : "✓"}
                       </div>
                     </div>
                   ))}

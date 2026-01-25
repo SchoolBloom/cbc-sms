@@ -30,7 +30,7 @@ const navigationItems: NavItem[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["admin", "teacher", "parent", "bursar"] },
   { name: "Students", href: "/students", icon: Users, roles: ["admin", "teacher"] },
   { name: "Classes", href: "/classes", icon: GraduationCap, roles: ["admin", "teacher"] },
-  { name: "Subjects", href: "/subjects", icon: BookOpenCheck, roles: ["admin"] },
+  { name: "Assignments", href: "/assignments", icon: BookOpenCheck, roles: ["admin"] },
   { name: "Attendance", href: "/attendance", icon: UserCheck, roles: ["admin", "teacher", "parent"] },
   { name: "Assessments", href: "/assessments", icon: ClipboardCheck, roles: ["admin", "teacher", "parent"] },
   { name: "Reports", href: "/reports", icon: FileText, roles: ["admin", "teacher", "parent", "bursar"] },
