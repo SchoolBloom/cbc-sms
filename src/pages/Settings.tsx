@@ -144,11 +144,11 @@ export default function Settings() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="headteacher">Head Teacher Name</Label>
-                      <Input id="headteacher" defaultValue="Mrs. Jane Wanjiku Kariuki" />
+                      <Input id="headteacher" defaultValue="Mr Sanaet Memusi" disabled />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="htPhone">Phone Number</Label>
-                      <Input id="htPhone" defaultValue="+254 712 345 678" />
+                      <Input id="htPhone" defaultValue="+254 798 131 855" disabled />
                     </div>
                   </div>
                 </div>
