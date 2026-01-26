@@ -153,10 +153,6 @@ export default function Settings() {
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-3 pt-4">
-                  <Button variant="outline">Cancel</Button>
-                  <Button>Save Changes</Button>
-                </div>
               </div>
             </div>
           )}
