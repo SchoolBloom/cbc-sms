@@ -18,6 +18,8 @@ const statusColors = {
 export function StudentProfileDialog({ student, open, onOpenChange }: StudentProfileDialogProps) {
   if (!student) return null;
 
+  const parentNames = [student.parents?.full_name, student.secondary_parent?.full_name].filter(Boolean);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[520px]">
@@ -70,7 +72,9 @@ export function StudentProfileDialog({ student, open, onOpenChange }: StudentPro
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Parent/Guardian</p>
-              <p className="font-medium text-foreground">{student.parents?.full_name || "-"}</p>
+              <p className="font-medium text-foreground">
+                {parentNames.length > 0 ? parentNames.join(", ") : "-"}
+              </p>
             </div>
           </div>
 

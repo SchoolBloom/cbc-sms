@@ -11,6 +11,7 @@ export interface Student {
   gender: string;
   class_id: string | null;
   parent_id: string | null;
+  parent_id_secondary: string | null;
   medical_notes: string | null;
   status: string;
   photo_url: string | null;
@@ -24,6 +25,13 @@ export interface Student {
     id: string;
     full_name: string;
     phone: string;
+    email?: string | null;
+  } | null;
+  secondary_parent: {
+    id: string;
+    full_name: string;
+    phone: string;
+    email?: string | null;
   } | null;
 }
 
@@ -36,7 +44,8 @@ export function useStudents() {
         .select(`
           *,
           classes:class_id (id, grade, stream),
-          parents:parent_id (id, full_name, phone)
+          parents:parent_id (id, full_name, phone),
+          secondary_parent:parent_id_secondary (id, full_name, phone)
         `)
         .order("full_name");
       
@@ -91,7 +100,8 @@ export function useStudent(id: string) {
         .select(`
           *,
           classes:class_id (id, grade, stream),
-          parents:parent_id (id, full_name, phone, email)
+          parents:parent_id (id, full_name, phone, email),
+          secondary_parent:parent_id_secondary (id, full_name, phone, email)
         `)
         .eq("id", id)
         .maybeSingle();
@@ -120,6 +130,7 @@ export function useUpdateStudent() {
         gender?: string;
         class_id?: string | null;
         parent_id?: string | null;
+        parent_id_secondary?: string | null;
         medical_notes?: string | null;
         status?: string;
       };

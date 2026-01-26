@@ -41,8 +41,15 @@ const studentSchema = z.object({
   gender: z.enum(["male", "female"], { required_error: "Please select gender" }),
   class_id: z.string().optional(),
   parent_id: z.string().optional(),
+  parent_id_secondary: z.string().optional(),
   medical_notes: z.string().max(500).optional(),
-});
+}).refine(
+  (data) => !data.parent_id || !data.parent_id_secondary || data.parent_id !== data.parent_id_secondary,
+  {
+    message: "Second parent must be different from the first.",
+    path: ["parent_id_secondary"],
+  }
+);
 
 type StudentFormData = z.infer<typeof studentSchema>;
 
@@ -64,9 +71,12 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
       gender: undefined,
       class_id: "",
       parent_id: "",
+      parent_id_secondary: "",
       medical_notes: "",
     },
   });
+  const primaryParentId = form.watch("parent_id");
+  const secondaryParentId = form.watch("parent_id_secondary");
 
   // Fetch classes for dropdown
   const { data: classes = [] } = useQuery({
@@ -104,6 +114,7 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
         gender: data.gender,
         class_id: data.class_id || null,
         parent_id: data.parent_id || null,
+        parent_id_secondary: data.parent_id_secondary || null,
         medical_notes: data.medical_notes?.trim() || null,
       });
       if (error) throw error;
@@ -251,7 +262,7 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
               name="parent_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Parent/Guardian</FormLabel>
+                  <FormLabel>Parent/Guardian 1</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
@@ -259,11 +270,40 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {parents.map((parent) => (
+                      {parents
+                        .filter((parent) => parent.id !== secondaryParentId)
+                        .map((parent) => (
                         <SelectItem key={parent.id} value={parent.id}>
                           {parent.full_name} ({parent.phone})
                         </SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="parent_id_secondary"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Parent/Guardian 2 (optional)</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select second parent/guardian" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {parents
+                        .filter((parent) => parent.id !== primaryParentId)
+                        .map((parent) => (
+                          <SelectItem key={parent.id} value={parent.id}>
+                            {parent.full_name} ({parent.phone})
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />

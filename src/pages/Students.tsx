@@ -203,7 +203,9 @@ export default function Students() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {sortedStudents.map((student) => (
+                {sortedStudents.map((student) => {
+                  const parentNames = [student.parents?.full_name, student.secondary_parent?.full_name].filter(Boolean);
+                  return (
                   <tr key={student.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3">
                       <span className="text-sm font-medium text-foreground">{student.admission_number}</span>
@@ -233,7 +235,7 @@ export default function Students() {
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-sm text-muted-foreground">
-                        {student.parents?.full_name || "-"}
+                        {parentNames.length > 0 ? parentNames.join(", ") : "-"}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -329,7 +331,8 @@ export default function Students() {
                       </DropdownMenu>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

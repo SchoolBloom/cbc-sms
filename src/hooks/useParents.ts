@@ -57,6 +57,7 @@ export function useParentsWithChildren() {
           full_name,
           admission_number,
           parent_id,
+          parent_id_secondary,
           classes:class_id (grade, stream)
         `);
       
@@ -65,12 +66,14 @@ export function useParentsWithChildren() {
       // Map children to parents
       const parentsWithChildren = parents.map((parent) => ({
         ...parent,
-        children: students.filter((s) => s.parent_id === parent.id).map((s) => ({
-          id: s.id,
-          full_name: s.full_name,
-          admission_number: s.admission_number,
-          classes: s.classes,
-        })),
+        children: students
+          .filter((s) => s.parent_id === parent.id || s.parent_id_secondary === parent.id)
+          .map((s) => ({
+            id: s.id,
+            full_name: s.full_name,
+            admission_number: s.admission_number,
+            classes: s.classes,
+          })),
       }));
 
       return parentsWithChildren as Parent[];

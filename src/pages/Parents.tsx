@@ -44,7 +44,9 @@ export default function Parents() {
     parent.phone.includes(searchQuery)
   );
 
-  const parentsWithEmail = parents.filter(p => p.email).length;
+  const parentsWithPhone = parents.filter((p) => p.phone?.trim()).length;
+  const phonePercentage = parents.length > 0 ? Math.round((parentsWithPhone / parents.length) * 100) : 0;
+  const parentsWithEmail = parents.filter((p) => p.email).length;
   const emailPercentage = parents.length > 0 ? Math.round((parentsWithEmail / parents.length) * 100) : 0;
 
   return (
@@ -76,7 +78,7 @@ export default function Parents() {
             <Phone className="w-6 h-6 text-success" />
           </div>
           <div>
-            <p className="text-2xl font-bold font-display text-foreground">100%</p>
+            <p className="text-2xl font-bold font-display text-foreground">{phonePercentage}%</p>
             <p className="text-sm text-muted-foreground">With Phone</p>
           </div>
         </div>

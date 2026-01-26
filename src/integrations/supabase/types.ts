@@ -405,6 +405,7 @@ export type Database = {
           id: string
           medical_notes: string | null
           parent_id: string | null
+          parent_id_secondary: string | null
           photo_url: string | null
           status: string
           updated_at: string
@@ -419,6 +420,7 @@ export type Database = {
           id?: string
           medical_notes?: string | null
           parent_id?: string | null
+          parent_id_secondary?: string | null
           photo_url?: string | null
           status?: string
           updated_at?: string
@@ -433,6 +435,7 @@ export type Database = {
           id?: string
           medical_notes?: string | null
           parent_id?: string | null
+          parent_id_secondary?: string | null
           photo_url?: string | null
           status?: string
           updated_at?: string
@@ -448,6 +451,13 @@ export type Database = {
           {
             foreignKeyName: "students_parent_id_fkey"
             columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "parents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "students_parent_id_secondary_fkey"
+            columns: ["parent_id_secondary"]
             isOneToOne: false
             referencedRelation: "parents"
             referencedColumns: ["id"]

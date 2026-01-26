@@ -147,7 +147,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
           const { data: children } = await supabase
             .from("students")
             .select("id, full_name, admission_number, assessment_number, status, classes:class_id (grade, stream)")
-            .eq("parent_id", parentRecord.id)
+            .or(`parent_id.eq.${parentRecord.id},parent_id_secondary.eq.${parentRecord.id}`)
             .order("full_name");
 
           const childIds = children?.map((child) => child.id) || [];
