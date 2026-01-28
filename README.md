@@ -1,65 +1,33 @@
 # School Bloom
 
-## Project info
+A calmer way to run school life.
 
-**URL**: add your deployed URL here
+School Bloom is a CBC-aligned school management system designed for Kenyan primary and junior secondary schools. It brings administrators, teachers, parents, and bursars into one workspace for daily operations, communication, and reporting.
 
-## How can I edit this code?
+## Core modules
 
-There are several ways of editing your application.
+- Dashboard with role-based insights
+- Students, classes, and teacher management
+- Subject assignments across CBC learning areas
+- Attendance and assessment tracking
+- Reports and downloadable records
+- Fees, invoicing, and payment status
+- Notices and school-wide announcements
+- Calendar for events and key dates
 
-**Use your preferred IDE**
+## Roles and access
 
-If you want to work locally using your own IDE, you can clone this repo and push changes.
+Role-based access controls tailor what each user sees and can manage:
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- Administrator
+- Teacher
+- Parent
+- Bursar
 
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
+## Tech stack
 
 - Vite
 - TypeScript
 - React
 - shadcn-ui
 - Tailwind CSS
-
-## How can I deploy this project?
-
-Use your preferred hosting provider (for example, Vercel or Netlify).
-
-## Can I connect a custom domain?
-
-Yes, you can!
-
-To connect a domain, follow your hosting provider's domain setup instructions.

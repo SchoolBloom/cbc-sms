@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -73,25 +73,6 @@ export default function Students() {
       ),
     [filteredStudents]
   );
-  const grade9CompletionIds = useMemo(
-    () =>
-      students
-        .filter(
-          (student) =>
-            student.classes?.grade === "Grade 9" &&
-            student.status === "active"
-        )
-        .map((student) => student.id),
-    [students]
-  );
-
-  useEffect(() => {
-    if (grade9CompletionIds.length === 0 || updateStudentStatus.isPending) return;
-    updateStudentStatus.mutate({
-      studentIds: grade9CompletionIds,
-      status: "completed",
-    });
-  }, [grade9CompletionIds, updateStudentStatus]);
 
   return (
     <DashboardLayout>
