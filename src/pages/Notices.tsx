@@ -6,6 +6,7 @@ import { useRole } from "@/contexts/RoleContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AddNoticeDialog } from "@/components/notices/AddNoticeDialog";
+import { EditNoticeDialog } from "@/components/notices/EditNoticeDialog";
 
 const priorityStyles = { high: "bg-destructive/10 text-destructive border-destructive/20", medium: "bg-warning/10 text-warning border-warning/20", low: "bg-muted text-muted-foreground border-border" };
 
@@ -122,7 +123,10 @@ export default function Notices() {
               {user.role === "parent" ? (
                 <Button variant="ghost" size="sm"><Eye className="w-4 h-4" /></Button>
               ) : canWrite && (
-                <Button variant="ghost" size="sm">Edit</Button>
+                <EditNoticeDialog
+                  notice={notice}
+                  trigger={<Button variant="ghost" size="sm">Edit</Button>}
+                />
               )}
             </div>
           </div>

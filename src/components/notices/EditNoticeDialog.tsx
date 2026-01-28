@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -25,8 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Loader2 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { Loader2 } from "lucide-react";
 
 const priorityOptions = ["low", "normal", "high", "urgent"] as const;
 const audienceOptions = [
@@ -45,74 +44,74 @@ const noticeSchema = z.object({
 
 type NoticeForm = z.infer<typeof noticeSchema>;
 
-interface AddNoticeDialogProps {
+type NoticeRecord = {
+  id: string;
+  title: string;
+  content: string;
+  priority: string;
+  target_audience: string[] | null;
+  published: boolean;
+  published_at: string | null;
+};
+
+interface EditNoticeDialogProps {
+  notice: NoticeRecord;
   trigger?: React.ReactNode;
 }
 
-export function AddNoticeDialog({ trigger }: AddNoticeDialogProps) {
+export function EditNoticeDialog({ notice, trigger }: EditNoticeDialogProps) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
-  const { user } = useAuth();
 
   const form = useForm<NoticeForm>({
     resolver: zodResolver(noticeSchema),
     defaultValues: {
-      title: "",
-      content: "",
-      priority: "normal",
-      target_audience: ["all"],
-      published: true,
+      title: notice.title,
+      content: notice.content,
+      priority: (notice.priority as NoticeForm["priority"]) || "normal",
+      target_audience: notice.target_audience?.length ? notice.target_audience : ["all"],
+      published: notice.published,
     },
   });
 
-  const createNotice = useMutation({
+  useEffect(() => {
+    if (!open) return;
+    form.reset({
+      title: notice.title,
+      content: notice.content,
+      priority: (notice.priority as NoticeForm["priority"]) || "normal",
+      target_audience: notice.target_audience?.length ? notice.target_audience : ["all"],
+      published: notice.published,
+    });
+  }, [form, notice, open]);
+
+  const updateNotice = useMutation({
     mutationFn: async (data: NoticeForm) => {
       const isAll = data.target_audience.includes("all");
       const audience = isAll ? ["all"] : data.target_audience;
+      const publishedAt = data.published
+        ? notice.published_at || new Date().toISOString()
+        : null;
 
-      const { data: notice, error } = await supabase
+      const { error } = await supabase
         .from("notices")
-        .insert({
+        .update({
           title: data.title.trim(),
           content: data.content.trim(),
           priority: data.priority,
           target_audience: audience,
           published: data.published,
-          published_at: data.published ? new Date().toISOString() : null,
-          created_by: user?.id || null,
+          published_at: publishedAt,
         })
-        .select("id, title, content, target_audience, published")
-        .single();
+        .eq("id", notice.id);
 
       if (error) throw error;
-      return notice;
     },
-    onSuccess: (notice) => {
-      toast.success("Notice created");
+    onSuccess: () => {
+      toast.success("Notice updated");
       queryClient.invalidateQueries({ queryKey: ["notices"] });
       queryClient.invalidateQueries({ queryKey: ["calendar-notices"] });
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3001";
-      if (notice?.published) {
-        fetch(`${apiUrl}/api/notices/${notice.id}/email`, { method: "POST" })
-          .then((response) => {
-            if (!response.ok) {
-              return response.json().catch(() => ({})).then((payload) => {
-                console.warn("Notice email request failed:", payload);
-              });
-            }
-          })
-          .catch((err) => {
-            console.warn("Notice email request failed:", err);
-          });
-      }
       setOpen(false);
-      form.reset({
-        title: "",
-        content: "",
-        priority: "normal",
-        target_audience: ["all"],
-        published: true,
-      });
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -120,22 +119,17 @@ export function AddNoticeDialog({ trigger }: AddNoticeDialogProps) {
   });
 
   const onSubmit = (data: NoticeForm) => {
-    createNotice.mutate(data);
+    updateNotice.mutate(data);
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        {trigger || (
-          <Button className="gap-2">
-            <Plus className="w-4 h-4" />
-            Create Notice
-          </Button>
-        )}
+        {trigger || <Button variant="ghost" size="sm">Edit</Button>}
       </DialogTrigger>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Create Notice</DialogTitle>
+          <DialogTitle>Edit Notice</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -251,14 +245,14 @@ export function AddNoticeDialog({ trigger }: AddNoticeDialogProps) {
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={createNotice.isPending}>
-                {createNotice.isPending ? (
+              <Button type="submit" disabled={updateNotice.isPending}>
+                {updateNotice.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating...
+                    Saving...
                   </>
                 ) : (
-                  "Create Notice"
+                  "Save Changes"
                 )}
               </Button>
             </div>

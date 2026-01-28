@@ -109,6 +109,7 @@ export function useAssignClassTeacher() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["classes"] });
       queryClient.invalidateQueries({ queryKey: ["classes-with-count"] });
+      queryClient.invalidateQueries({ queryKey: ["teacher-class-assignments"] });
       toast.success("Class teacher updated");
     },
     onError: (error: Error) => {
