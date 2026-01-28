@@ -24,7 +24,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           <Button variant="outline" size="icon" onClick={() => setMobileNavOpen(true)}>
             <Menu className="h-4 w-4" />
           </Button>
-          <span className="text-sm font-semibold text-foreground">Shule SMS</span>
+          <span className="text-sm font-semibold text-foreground">School Bloom</span>
           <div className="h-9 w-9" />
         </div>
         <div className="p-4 sm:p-6 lg:p-8">

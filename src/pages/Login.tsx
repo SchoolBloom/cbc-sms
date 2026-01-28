@@ -124,9 +124,19 @@ export default function Login() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-2xl">Welcome back</CardTitle>
                 <CardDescription>Sign in to continue or create a new account.</CardDescription>
-                <TabsList className="mt-4 grid w-full grid-cols-2">
-                  <TabsTrigger value="login">Sign In</TabsTrigger>
-                  <TabsTrigger value="signup">Create Account</TabsTrigger>
+                <TabsList className="mt-4 grid w-full grid-cols-2 rounded-full border border-[#0B6A62]/20 bg-[linear-gradient(120deg,rgba(11,106,98,0.12),rgba(199,112,64,0.10))] p-1 shadow-[inset_0_0_0_1px_rgba(11,106,98,0.08)]">
+                  <TabsTrigger
+                    value="login"
+                    className="rounded-full border-b-2 border-transparent text-sm font-semibold text-muted-foreground transition data-[state=active]:border-[#0B6A62] data-[state=active]:bg-white/90 data-[state=active]:text-foreground data-[state=active]:shadow-[0_6px_16px_-12px_rgba(11,106,98,0.6)]"
+                  >
+                    Sign In
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="signup"
+                    className="rounded-full border-b-2 border-transparent text-sm font-semibold text-muted-foreground transition data-[state=active]:border-[#0B6A62] data-[state=active]:bg-white/90 data-[state=active]:text-foreground data-[state=active]:shadow-[0_6px_16px_-12px_rgba(11,106,98,0.6)]"
+                  >
+                    Create Account
+                  </TabsTrigger>
                 </TabsList>
               </CardHeader>
 
@@ -271,17 +281,17 @@ export default function Login() {
       </div>
       </div>
       <footer>
-        <div className="w-full px-6 pb-8 flex justify-center">
+        <div className="w-full px-7 pb-7 flex justify-center">
         <div className="text-center text-xs text-muted-foreground">
-          <p className="uppercase tracking-[0.2em]">Powered by</p>
-          <div className="mt-3 flex flex-col items-center">
+          <p className="uppercase tracking-[0.15em]">Powered by</p>
+          <div className="mt-1 flex flex-col items-center">
             <img
               src="/sirnaet-logo.png"
               alt="Sirnaet logo"
               className="h-16 w-16 object-contain"
               loading="lazy"
             />
-            <p className="mt-2 text-sm font-semibold text-foreground">Sirnaet</p>
+            <p className="mt-0.5 text-sm font-semibold text-foreground">Sirnaet</p>
           </div>
         </div>
       </div>
