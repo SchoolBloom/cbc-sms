@@ -8,6 +8,7 @@ type ActivityRole = "admin" | "teacher";
 interface RecentActivityProps {
   role?: ActivityRole;
   classIds?: string[];
+  teacherId?: string;
 }
 
 interface ActivityItem {
@@ -26,9 +27,9 @@ const formatActivityTime = (value?: string | null) => {
   return date.toLocaleString("en-KE", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 };
 
-export function RecentActivity({ role = "admin", classIds }: RecentActivityProps) {
+export function RecentActivity({ role = "admin", classIds, teacherId }: RecentActivityProps) {
   const { data: activityItems = [] } = useQuery({
-    queryKey: ["recent-activity", role, classIds],
+    queryKey: ["recent-activity", role, classIds, teacherId],
     queryFn: async () => {
       const items: ActivityItem[] = [];
 
@@ -105,26 +106,59 @@ export function RecentActivity({ role = "admin", classIds }: RecentActivityProps
 
       if (role === "teacher") {
         if (classIds && classIds.length === 0) return [];
+        if (!teacherId) return [];
 
-        const [{ data: attendance }, { data: assessments }, { data: notices }] = await Promise.all([
-          supabase
-            .from("attendance")
-            .select("id, created_at, date, status, classes:class_id (grade, stream)")
-            .in("class_id", classIds || [])
-            .order("created_at", { ascending: false })
-            .limit(3),
-          supabase
+        const { data: assignments, error: assignmentsError } = await supabase
+          .from("subject_assignments")
+          .select("class_id, subjects(name)")
+          .eq("teacher_id", teacherId);
+        if (assignmentsError) throw assignmentsError;
+
+        const assignedLearningAreas = Array.from(
+          new Set(
+            (assignments || [])
+              .map((assignment) => assignment.subjects?.name)
+              .filter((name): name is string => Boolean(name))
+          )
+        );
+        const assignedClassIds = Array.from(
+          new Set((assignments || []).map((assignment) => assignment.class_id).filter(Boolean))
+        );
+
+        const attendancePromise = supabase
+          .from("attendance")
+          .select("id, created_at, date, status, classes:class_id (grade, stream)")
+          .in("class_id", classIds || [])
+          .order("created_at", { ascending: false })
+          .limit(3);
+
+        const assessmentsPromise = (() => {
+          if (assignedLearningAreas.length === 0) {
+            return Promise.resolve({ data: [] as any[] });
+          }
+          let query = supabase
             .from("assessments")
             .select("id, created_at, learning_area, student:students(full_name), class:classes(grade, stream)")
-            .in("class_id", classIds || [])
             .order("created_at", { ascending: false })
-            .limit(3),
-          supabase
-            .from("notices")
-            .select("id, title, published_at, created_at")
-            .eq("published", true)
-            .order("published_at", { ascending: false })
-            .limit(3),
+            .limit(3);
+          query = query.in("learning_area", assignedLearningAreas);
+          if (assignedClassIds.length > 0) {
+            query = query.in("class_id", assignedClassIds);
+          }
+          return query;
+        })();
+
+        const noticesPromise = supabase
+          .from("notices")
+          .select("id, title, published_at, created_at")
+          .eq("published", true)
+          .order("published_at", { ascending: false })
+          .limit(3);
+
+        const [{ data: attendance }, { data: assessments }, { data: notices }] = await Promise.all([
+          attendancePromise,
+          assessmentsPromise,
+          noticesPromise,
         ]);
 
         attendance?.forEach((record) => {

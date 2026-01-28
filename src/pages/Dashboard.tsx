@@ -523,7 +523,7 @@ export default function Dashboard() {
                   </button>
                 </div>
               </div>
-              <RecentActivity role="teacher" classIds={teacherClassIds} />
+              <RecentActivity role="teacher" classIds={teacherClassIds} teacherId={user.id} />
             </div>
           </div>
         </>

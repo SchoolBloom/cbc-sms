@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import { UserPlus, ClipboardCheck, FileText, CreditCard, Bell, Calendar } from "lucide-react";
 
 const actions = [
-  { name: "Add Student", icon: UserPlus, href: "/students/new", color: "bg-primary/10 text-primary" },
+  { name: "Add Student", icon: UserPlus, href: "/students/new", color: "bg-primary/10 text-primary", roles: ["admin"] },
   { name: "Take Attendance", icon: ClipboardCheck, href: "/attendance", color: "bg-success/10 text-success" },
   { name: "Record Assessment", icon: FileText, href: "/assessments", color: "bg-info/10 text-info" },
   { name: "Record Payment", icon: CreditCard, href: "/fees", color: "bg-accent/10 text-accent" },
@@ -11,11 +12,18 @@ const actions = [
 ];
 
 export function QuickActions() {
+  const { user } = useAuth();
+  const visibleActions = actions.filter((action) => {
+    if (!action.roles) return true;
+    if (!user?.role) return false;
+    return action.roles.includes(user.role);
+  });
+
   return (
     <div className="bg-card rounded-xl border border-border/50 p-5">
       <h3 className="font-display font-semibold text-foreground mb-4">Quick Actions</h3>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {actions.map((action) => (
+        {visibleActions.map((action) => (
           <Link
             key={action.name}
             to={action.href}

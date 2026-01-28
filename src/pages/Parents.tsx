@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,15 +57,29 @@ export default function Parents() {
   
   const canWrite = user?.role === "admin";
 
-  const filteredParents = parents.filter((parent) => 
-    parent.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    parent.phone.includes(searchQuery)
-  );
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredParents = useMemo(() => {
+    if (!normalizedSearch) return parents;
+    return parents.filter((parent) => {
+      const nameMatch = parent.full_name.toLowerCase().includes(normalizedSearch);
+      const phoneMatch = parent.phone?.includes(normalizedSearch);
+      return nameMatch || phoneMatch;
+    });
+  }, [parents, normalizedSearch]);
 
-  const parentsWithPhone = parents.filter((p) => p.phone?.trim()).length;
-  const phonePercentage = parents.length > 0 ? Math.round((parentsWithPhone / parents.length) * 100) : 0;
-  const parentsWithEmail = parents.filter((p) => p.email).length;
-  const emailPercentage = parents.length > 0 ? Math.round((parentsWithEmail / parents.length) * 100) : 0;
+  const { phonePercentage, emailPercentage } = useMemo(() => {
+    let parentsWithPhone = 0;
+    let parentsWithEmail = 0;
+    for (const parent of parents) {
+      if (parent.phone?.trim()) parentsWithPhone += 1;
+      if (parent.email) parentsWithEmail += 1;
+    }
+    const total = parents.length;
+    return {
+      phonePercentage: total > 0 ? Math.round((parentsWithPhone / total) * 100) : 0,
+      emailPercentage: total > 0 ? Math.round((parentsWithEmail / total) * 100) : 0,
+    };
+  }, [parents]);
 
   return (
     <DashboardLayout>

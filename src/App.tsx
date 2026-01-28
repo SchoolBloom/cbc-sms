@@ -129,7 +129,7 @@ function AppRoutes() {
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/awaiting-allocation" element={<AwaitingAllocation />} />
       <Route path="/" element={<ProtectedRoute><RoleHome /></ProtectedRoute>} />
-      <Route path="/students" element={<RoleProtectedRoute allowedRoles={["admin", "teacher"]}><Students /></RoleProtectedRoute>} />
+      <Route path="/students" element={<RoleProtectedRoute allowedRoles={["admin"]}><Students /></RoleProtectedRoute>} />
       <Route path="/classes" element={<RoleProtectedRoute allowedRoles={["admin", "teacher"]}><Classes /></RoleProtectedRoute>} />
       <Route path="/attendance" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent"]}><Attendance /></RoleProtectedRoute>} />
       <Route path="/assessments" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent"]}><Assessments /></RoleProtectedRoute>} />

@@ -76,17 +76,42 @@ export function useParentsWithChildren(
       
       if (studentsError) throw studentsError;
 
-      // Map children to parents
+      // Map children to parents in one pass to avoid O(parents * students) work
+      const childrenByParentId = new Map<
+        string,
+        {
+          id: string;
+          full_name: string;
+          admission_number: string;
+          classes: {
+            grade: string;
+            stream: string;
+          } | null;
+        }[]
+      >();
+
+      for (const student of students || []) {
+        const child = {
+          id: student.id,
+          full_name: student.full_name,
+          admission_number: student.admission_number,
+          classes: student.classes,
+        };
+        if (student.parent_id) {
+          const list = childrenByParentId.get(student.parent_id) || [];
+          list.push(child);
+          childrenByParentId.set(student.parent_id, list);
+        }
+        if (student.parent_id_secondary && student.parent_id_secondary !== student.parent_id) {
+          const list = childrenByParentId.get(student.parent_id_secondary) || [];
+          list.push(child);
+          childrenByParentId.set(student.parent_id_secondary, list);
+        }
+      }
+
       const parentsWithChildren = parents.map((parent) => ({
         ...parent,
-        children: students
-          .filter((s) => s.parent_id === parent.id || s.parent_id_secondary === parent.id)
-          .map((s) => ({
-            id: s.id,
-            full_name: s.full_name,
-            admission_number: s.admission_number,
-            classes: s.classes,
-          })),
+        children: childrenByParentId.get(parent.id) || [],
       }));
 
       if (Array.isArray(classIds)) {

@@ -28,7 +28,7 @@ interface NavItem {
 
 const navigationItems: NavItem[] = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["admin", "teacher", "parent", "bursar"] },
-  { name: "Students", href: "/students", icon: Users, roles: ["admin", "teacher"] },
+  { name: "Students", href: "/students", icon: Users, roles: ["admin"] },
   { name: "Classes", href: "/classes", icon: GraduationCap, roles: ["admin", "teacher"] },
   { name: "Assignments", href: "/assignments", icon: BookOpenCheck, roles: ["admin"] },
   { name: "Attendance", href: "/attendance", icon: UserCheck, roles: ["admin", "teacher", "parent"] },

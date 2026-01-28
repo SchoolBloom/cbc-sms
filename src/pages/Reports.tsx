@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { FileText, Download, Users, CreditCard, ClipboardCheck, TrendingUp } from "lucide-react";
@@ -66,36 +66,65 @@ const formatDate = (value?: string | null) => {
   return date.toISOString().split("T")[0];
 };
 
-const toCsv = (rows: Record<string, string | number | null | undefined>[]) => {
-  if (rows.length === 0) return "";
-  const headers = Object.keys(rows[0]);
-  const escapeValue = (value: string | number | null | undefined) => {
-    const text = String(value ?? "");
-    const escaped = text.replace(/"/g, '""');
-    return `"${escaped}"`;
-  };
-  const lines = [
-    headers.join(","),
-    ...rows.map((row) => headers.map((header) => escapeValue(row[header])).join(",")),
-  ];
-  return lines.join("\n");
-};
-
-const downloadCsv = (filename: string, rows: Record<string, string | number | null | undefined>[]) => {
-  const csv = toCsv(rows);
-  if (!csv) {
+const downloadPdf = (
+  filename: string,
+  title: string,
+  rows: Record<string, string | number | null | undefined>[]
+) => {
+  if (rows.length === 0) {
     toast.info("No data available for this report yet.");
     return;
   }
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = window.URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.setAttribute("download", filename);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.URL.revokeObjectURL(url);
+
+  const headers = Object.keys(rows[0]);
+  const docTitle = filename.replace(/\.pdf$/i, "");
+  const rowsHtml = rows
+    .map(
+      (row) =>
+        `<tr>${headers
+          .map((header) => `<td>${String(row[header] ?? "")}</td>`)
+          .join("")}</tr>`
+    )
+    .join("");
+
+  const printWindow = window.open("", "_blank", "width=1024,height=768");
+  if (!printWindow) {
+    toast.error("Pop-up blocked. Please allow pop-ups to generate the PDF.");
+    return;
+  }
+
+  printWindow.document.write(`<!doctype html>
+    <html>
+      <head>
+        <title>${docTitle}</title>
+        <style>
+          :root { color-scheme: light; }
+          body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
+          h1 { font-size: 20px; margin: 0 0 8px; }
+          p { margin: 0 0 16px; font-size: 12px; color: #6b7280; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; }
+          th { background: #f3f4f6; font-weight: 600; }
+          tr:nth-child(even) td { background: #fafafa; }
+        </style>
+      </head>
+      <body>
+        <h1>${title}</h1>
+        <p>Generated on ${new Date().toLocaleString("en-KE")}</p>
+        <table>
+          <thead>
+            <tr>${headers.map((header) => `<th>${header.replace(/_/g, " ")}</th>`).join("")}</tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </body>
+    </html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+  printWindow.onafterprint = () => {
+    printWindow.close();
+  };
 };
 
 export default function Reports() {
@@ -120,8 +149,51 @@ export default function Reports() {
 
   const teacherClassIds = teacherClasses.map((cls) => cls.id);
 
+  const { data: teacherSubjectAssignments = [] } = useQuery({
+    queryKey: ["teacher-subject-assignments-reports", user.id],
+    queryFn: async () => {
+      if (user.role !== "teacher") return [];
+      const { data, error } = await supabase
+        .from("subject_assignments")
+        .select("class_id, subjects(name)")
+        .eq("teacher_id", user.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: user.role === "teacher",
+  });
+
+  const assignedLearningAreas = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          teacherSubjectAssignments
+            .map((assignment) => assignment.subjects?.name)
+            .filter((name): name is string => Boolean(name))
+        )
+      ),
+    [teacherSubjectAssignments]
+  );
+
+  const assignedClassIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          teacherSubjectAssignments
+            .map((assignment) => assignment.class_id)
+            .filter((id): id is string => Boolean(id))
+        )
+      ),
+    [teacherSubjectAssignments]
+  );
+
+  const allowedTeacherClassIds = useMemo(
+    () => Array.from(new Set([...teacherClassIds, ...assignedClassIds])),
+    [teacherClassIds, assignedClassIds]
+  );
+
   const { data: recentReports = [] } = useQuery({
-    queryKey: ["recent-reports", user.role, selectedChildId, teacherClassIds],
+    queryKey: ["recent-reports", user.role, selectedChildId, allowedTeacherClassIds, assignedLearningAreas],
     queryFn: async () => {
       const items: RecentReport[] = [];
 
@@ -162,7 +234,7 @@ export default function Reports() {
             name: `Attendance (${record.status})`,
             date: formatDate(record.date),
             type: "attendance",
-            format: "Excel",
+            format: "PDF",
           });
         });
 
@@ -177,25 +249,20 @@ export default function Reports() {
       }
 
       if (user.role === "teacher") {
-        if (teacherClassIds.length === 0) return [];
-        const [{ data: assessments }, { data: attendance }, { data: students }] = await Promise.all([
+        if (allowedTeacherClassIds.length === 0) return [];
+        const [{ data: assessments }, { data: attendance }] = await Promise.all([
           supabase
             .from("assessments")
             .select("id, learning_area, created_at, class:classes(grade, stream)")
-            .in("class_id", teacherClassIds)
+            .in("class_id", allowedTeacherClassIds)
+            .in("learning_area", assignedLearningAreas.length ? assignedLearningAreas : ["__none__"])
             .order("created_at", { ascending: false })
             .limit(3),
           supabase
             .from("attendance")
             .select("id, date, class:classes(grade, stream)")
-            .in("class_id", teacherClassIds)
+            .in("class_id", allowedTeacherClassIds)
             .order("date", { ascending: false })
-            .limit(2),
-          supabase
-            .from("students")
-            .select("id, full_name, created_at, class:classes(grade, stream)")
-            .in("class_id", teacherClassIds)
-            .order("created_at", { ascending: false })
             .limit(2),
         ]);
 
@@ -213,18 +280,10 @@ export default function Reports() {
             name: `Attendance report (${record.class?.grade || ""}${record.class?.stream || ""})`,
             date: formatDate(record.date),
             type: "attendance",
-            format: "Excel",
-          });
-        });
-
-        students?.forEach((student) => {
-          items.push({
-            name: `${student.full_name} enrollment`,
-            date: formatDate(student.created_at),
-            type: "enrollment",
             format: "PDF",
           });
         });
+
       }
 
       if (user.role === "bursar") {
@@ -288,7 +347,7 @@ export default function Reports() {
             name: `Attendance report (${record.class?.grade || ""}${record.class?.stream || ""})`,
             date: formatDate(record.date),
             type: "attendance",
-            format: "Excel",
+            format: "PDF",
           });
         });
       }
@@ -311,7 +370,7 @@ export default function Reports() {
         return;
       }
 
-      if (user.role === "teacher" && teacherClassIds.length === 0) {
+      if (user.role === "teacher" && allowedTeacherClassIds.length === 0) {
         toast.error("No classes assigned to this teacher.");
         return;
       }
@@ -333,7 +392,7 @@ export default function Reports() {
           created_at: formatDate(student.created_at),
         }));
 
-        downloadCsv("enrollment-report.csv", rows);
+        downloadPdf("enrollment-report.pdf", "Enrollment Report", rows);
         return;
       }
 
@@ -349,7 +408,7 @@ export default function Reports() {
         }
 
         if (user.role === "teacher") {
-          query = query.in("class_id", teacherClassIds);
+          query = query.in("class_id", allowedTeacherClassIds);
         }
 
         const { data, error } = await query;
@@ -364,7 +423,7 @@ export default function Reports() {
           status: record.status,
         }));
 
-        downloadCsv("attendance-report.csv", rows);
+        downloadPdf("attendance-report.pdf", "Attendance Report", rows);
         return;
       }
 
@@ -395,7 +454,7 @@ export default function Reports() {
           payment_date: formatDate(fee.payment_date),
         }));
 
-        downloadCsv("fee-collection-report.csv", rows);
+        downloadPdf("fee-collection-report.pdf", "Fee Collection Report", rows);
         return;
       }
 
@@ -411,7 +470,16 @@ export default function Reports() {
         }
 
         if (user.role === "teacher") {
-          query = query.in("class_id", teacherClassIds);
+          query = query.in("class_id", allowedTeacherClassIds);
+          if (assignedLearningAreas.length === 0) {
+            downloadPdf(
+              reportId === "termly" ? "term-report-cards.pdf" : "performance-report.pdf",
+              reportId === "termly" ? "Term Report Cards" : "CBC Performance Report",
+              []
+            );
+            return;
+          }
+          query = query.in("learning_area", assignedLearningAreas);
         }
 
         const { data, error } = await query;
@@ -430,7 +498,11 @@ export default function Reports() {
           created_at: formatDate(assessment.created_at),
         }));
 
-        downloadCsv("performance-report.csv", rows);
+        downloadPdf(
+          reportId === "termly" ? "term-report-cards.pdf" : "performance-report.pdf",
+          reportId === "termly" ? "Term Report Cards" : "CBC Performance Report",
+          rows
+        );
         return;
       }
 
