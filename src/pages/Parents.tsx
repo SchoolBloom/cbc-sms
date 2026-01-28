@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Search, Phone, Mail, Users, Loader2, MoreHorizontal, Eye, Edit, Trash2, UserCheck } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAssignParentRole, useParentsWithChildren, useDeleteParent, Parent } from "@/hooks/useParents";
+import { supabase } from "@/integrations/supabase/client";
 import { AddParentDialog } from "@/components/parents/AddParentDialog";
 import { ParentProfileDialog } from "@/components/parents/ParentProfileDialog";
 import { EditParentDialog } from "@/components/parents/EditParentDialog";
@@ -33,7 +35,23 @@ export default function Parents() {
   const [viewParent, setViewParent] = useState<Parent | null>(null);
   const [editParent, setEditParent] = useState<Parent | null>(null);
   
-  const { data: parents = [], isLoading, error } = useParentsWithChildren();
+  const isTeacher = user?.role === "teacher";
+  const { data: teacherClassIds = [], isLoading: classesLoading, error: classesError } = useQuery({
+    queryKey: ["teacher-class-ids", user?.id],
+    enabled: isTeacher && Boolean(user?.id),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("classes")
+        .select("id")
+        .eq("teacher_id", user?.id || "");
+      if (error) throw error;
+      return data?.map((row) => row.id) || [];
+    },
+  });
+  const { data: parents = [], isLoading, error } = useParentsWithChildren(
+    isTeacher ? teacherClassIds : undefined,
+    { enabled: !isTeacher || !classesLoading }
+  );
   const assignParentRole = useAssignParentRole();
   const deleteParent = useDeleteParent();
   
@@ -107,11 +125,11 @@ export default function Parents() {
       </div>
 
       {/* Parents Grid */}
-      {isLoading ? (
+      {(isLoading || classesLoading) ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-primary" />
         </div>
-      ) : error ? (
+      ) : (error || classesError) ? (
         <div className="text-center py-12 text-destructive">
           Failed to load parents. Please try again.
         </div>

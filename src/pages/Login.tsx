@@ -283,7 +283,7 @@ export default function Login() {
       <footer>
         <div className="w-full px-7 pb-7 flex justify-center">
         <div className="text-center text-xs text-muted-foreground">
-          <p className="uppercase tracking-[0.15em]">Powered by</p>
+          <p className="uppercase tracking-[0.05em]">Powered by</p>
           <div className="mt-1 flex flex-col items-center">
             <img
               src="/sirnaet-logo.png"
@@ -291,7 +291,7 @@ export default function Login() {
               className="h-16 w-16 object-contain"
               loading="lazy"
             />
-            <p className="mt-0.5 text-sm font-semibold text-foreground">Sirnaet</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">SIR NAET</p>
           </div>
         </div>
       </div>

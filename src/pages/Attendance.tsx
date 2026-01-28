@@ -15,6 +15,8 @@ import { useRole } from "@/contexts/RoleContext";
 import { useClasses } from "@/hooks/useClasses";
 import { useStudents } from "@/hooks/useStudents";
 import { useAttendance, useSaveAttendance, useStudentAttendanceHistory } from "@/hooks/useAttendance";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 type AttendanceStatus = "present" | "absent" | null;
 
@@ -24,12 +26,25 @@ export default function Attendance() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [attendance, setAttendance] = useState<Record<string, AttendanceStatus>>({});
   const canWrite = hasPermission("attendance:write");
+  const isTeacher = user.role === "teacher";
   const selectedChild = user.children?.find((child) => child.id === selectedChildId);
   const childInitials = selectedChild?.full_name
     ? selectedChild.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2)
     : "??";
 
   const { data: classes, isLoading: classesLoading } = useClasses();
+  const { data: teacherClasses = [], isLoading: teacherClassesLoading } = useQuery({
+    queryKey: ["teacher-classes", user.id],
+    enabled: isTeacher,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("classes")
+        .select("id, grade, stream")
+        .eq("teacher_id", user.id);
+      if (error) throw error;
+      return data || [];
+    },
+  });
   const { data: students, isLoading: studentsLoading } = useStudents();
   const { data: existingAttendance } = useAttendance(selectedClassId, selectedDate);
   const saveAttendance = useSaveAttendance();
@@ -38,6 +53,21 @@ export default function Attendance() {
   const { data: attendanceHistory } = useStudentAttendanceHistory(
     user.role === "parent" ? selectedChildId || undefined : undefined
   );
+
+  const availableClasses = isTeacher ? teacherClasses : classes || [];
+
+  useEffect(() => {
+    if (!isTeacher) return;
+    if (teacherClassesLoading) return;
+    if (teacherClasses.length === 0) {
+      if (selectedClassId) setSelectedClassId("");
+      return;
+    }
+    const isAllowed = teacherClasses.some((cls) => cls.id === selectedClassId);
+    if (!selectedClassId || !isAllowed) {
+      setSelectedClassId(teacherClasses[0].id);
+    }
+  }, [isTeacher, teacherClasses, teacherClassesLoading, selectedClassId]);
 
   // Filter students by selected class
   const classStudents = students?.filter((s) => s.class_id === selectedClassId) || [];
@@ -225,15 +255,19 @@ export default function Attendance() {
       <div className="bg-card rounded-xl border border-border/50 p-4 mb-6">
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
           <div className="flex items-center gap-4">
-            <Select value={selectedClassId} onValueChange={setSelectedClassId}>
+            <Select
+              value={selectedClassId}
+              onValueChange={setSelectedClassId}
+              disabled={isTeacher && teacherClasses.length <= 1}
+            >
               <SelectTrigger className="w-48">
                 <SelectValue placeholder="Select class" />
               </SelectTrigger>
               <SelectContent>
-                {classesLoading ? (
+                {(classesLoading || teacherClassesLoading) ? (
                   <SelectItem value="__loading__" disabled>Loading...</SelectItem>
                 ) : (
-                  classes?.map((cls) => (
+                  availableClasses.map((cls) => (
                     <SelectItem key={cls.id} value={cls.id}>
                       Grade {cls.grade} {cls.stream}
                     </SelectItem>
@@ -260,15 +294,19 @@ export default function Attendance() {
         <div className="px-4 py-3 border-b border-border bg-muted/30">
           <h3 className="font-display font-semibold text-foreground">
             {selectedClassId 
-              ? `${classes?.find((c) => c.id === selectedClassId)?.grade || ""} ${classes?.find((c) => c.id === selectedClassId)?.stream || ""} - ${classStudents.length} Students`
+              ? `${availableClasses.find((c) => c.id === selectedClassId)?.grade || ""} ${availableClasses.find((c) => c.id === selectedClassId)?.stream || ""} - ${classStudents.length} Students`
               : "Select a class to record attendance"
             }
           </h3>
         </div>
         
-        {studentsLoading ? (
+        {studentsLoading || teacherClassesLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          </div>
+        ) : isTeacher && availableClasses.length === 0 ? (
+          <div className="py-12 text-center text-muted-foreground">
+            No class assigned. Please contact an administrator.
           </div>
         ) : !selectedClassId ? (
           <div className="py-12 text-center text-muted-foreground">

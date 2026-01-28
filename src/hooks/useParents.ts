@@ -37,9 +37,13 @@ export function useParents() {
   });
 }
 
-export function useParentsWithChildren() {
+export function useParentsWithChildren(
+  classIds?: string[] | null,
+  options?: { enabled?: boolean }
+) {
   return useQuery({
-    queryKey: ["parents-with-children"],
+    queryKey: ["parents-with-children", classIds?.join(",") || "all"],
+    enabled: options?.enabled ?? true,
     queryFn: async () => {
       // First get all parents
       const { data: parents, error: parentsError } = await supabase
@@ -50,7 +54,7 @@ export function useParentsWithChildren() {
       if (parentsError) throw parentsError;
 
       // Then get students with their class info
-      const { data: students, error: studentsError } = await supabase
+      let studentsQuery = supabase
         .from("students")
         .select(`
           id,
@@ -58,8 +62,17 @@ export function useParentsWithChildren() {
           admission_number,
           parent_id,
           parent_id_secondary,
+          class_id,
           classes:class_id (grade, stream)
         `);
+
+      if (Array.isArray(classIds)) {
+        if (classIds.length === 0) {
+          return [];
+        }
+        studentsQuery = studentsQuery.in("class_id", classIds);
+      }
+      const { data: students, error: studentsError } = await studentsQuery;
       
       if (studentsError) throw studentsError;
 
@@ -75,6 +88,10 @@ export function useParentsWithChildren() {
             classes: s.classes,
           })),
       }));
+
+      if (Array.isArray(classIds)) {
+        return parentsWithChildren.filter((parent) => parent.children && parent.children.length > 0) as Parent[];
+      }
 
       return parentsWithChildren as Parent[];
     },
