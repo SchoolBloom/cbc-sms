@@ -64,13 +64,14 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(11,106,98,0.08),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(199,112,64,0.12),_transparent_50%)] flex items-stretch justify-center">
-      <div className="relative w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-10 px-6 py-10 lg:py-16">
-        {/* Ambient background shapes */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -top-16 left-8 h-56 w-56 rounded-full bg-[conic-gradient(from_160deg,_rgba(11,106,98,0.15),_transparent_70%)] blur-2xl" />
-          <div className="absolute bottom-10 right-6 h-64 w-64 rounded-full bg-[radial-gradient(circle,_rgba(199,112,64,0.18),_transparent_65%)] blur-3xl" />
-        </div>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(11,106,98,0.08),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(199,112,64,0.12),_transparent_50%)] flex flex-col">
+      <div className="relative w-full flex-1 flex items-stretch justify-center">
+        <div className="relative w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-10 px-6 py-10 lg:py-16">
+          {/* Ambient background shapes */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute -top-16 left-8 h-56 w-56 rounded-full bg-[conic-gradient(from_160deg,_rgba(11,106,98,0.15),_transparent_70%)] blur-2xl" />
+            <div className="absolute bottom-10 right-6 h-64 w-64 rounded-full bg-[radial-gradient(circle,_rgba(199,112,64,0.18),_transparent_65%)] blur-3xl" />
+          </div>
 
         {/* Hero */}
         <div className="relative z-10 flex flex-col justify-center gap-8">
@@ -117,7 +118,7 @@ export default function Login() {
         </div>
 
         {/* Auth card */}
-        <div className="relative z-10 flex items-center">
+        <div className="relative z-10 flex min-h-full flex-col">
           <Card className="w-full border-border/50 shadow-[0_25px_70px_-45px_rgba(11,106,98,0.6)]">
             <Tabs defaultValue="login" className="w-full">
               <CardHeader className="pb-3">
@@ -266,6 +267,21 @@ export default function Login() {
               </CardContent>
             </Tabs>
           </Card>
+        </div>
+      </div>
+      </div>
+      <div className="w-full px-6 pb-8">
+        <div className="text-center text-xs text-muted-foreground">
+          <p className="uppercase tracking-[0.2em]">Powered by</p>
+          <div className="mt-3 flex flex-col items-center">
+            <img
+              src="/sirnaet-logo.png"
+              alt="Sirnaet logo"
+              className="h-16 w-16 object-contain"
+              loading="lazy"
+            />
+            <p className="mt-2 text-sm font-semibold text-foreground">Sirnaet</p>
+          </div>
         </div>
       </div>
     </div>
