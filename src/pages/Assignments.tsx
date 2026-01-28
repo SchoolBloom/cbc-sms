@@ -98,36 +98,8 @@ export default function Assignments() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1 space-y-6">
-          <div className="bg-card rounded-xl border border-border/50 p-5 space-y-4">
-            <div className="flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-primary" />
-              <h2 className="font-display font-semibold text-foreground">Learning Areas</h2>
-            </div>
-            <div className="space-y-4 max-h-[520px] overflow-y-auto pr-1">
-              {learningAreaGroups.map((group) => (
-                <div key={group.title} className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {group.title}
-                  </p>
-                  <div className="space-y-2">
-                    {group.items.map((area) => (
-                      <div
-                        key={area}
-                        className="flex items-center gap-3 rounded-lg bg-muted/50 px-3 py-2"
-                      >
-                        <span className="text-sm text-foreground">{area}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-6">
           <div className="bg-card rounded-xl border border-border/50 p-5 space-y-4">
             <h2 className="font-display font-semibold text-foreground">Assign Learning Area</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -202,6 +174,34 @@ export default function Assignments() {
             )}
           </div>
 
+          <div className="bg-card rounded-xl border border-border/50 p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-primary" />
+              <h2 className="font-display font-semibold text-foreground">Learning Areas</h2>
+            </div>
+            <div className="space-y-4 max-h-[520px] overflow-y-auto pr-1">
+              {learningAreaGroups.map((group) => (
+                <div key={group.title} className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {group.title}
+                  </p>
+                  <div className="space-y-2">
+                    {group.items.map((area) => (
+                      <div
+                        key={area}
+                        className="flex items-center gap-3 rounded-lg bg-muted/50 px-3 py-2"
+                      >
+                        <span className="text-sm text-foreground">{area}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-6">
           <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
             <div className="px-5 py-4 border-b border-border">
               <h3 className="font-display font-semibold text-foreground">Assignments</h3>
