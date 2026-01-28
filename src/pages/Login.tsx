@@ -118,7 +118,7 @@ export default function Login() {
         </div>
 
         {/* Auth card */}
-        <div className="relative z-10 flex min-h-full flex-col">
+        <div className="relative z-10 flex min-h-full flex-col pt-16 lg:pt-28 justify-center items-center">
           <Card className="w-full border-border/50 shadow-[0_25px_70px_-45px_rgba(11,106,98,0.6)]">
             <Tabs defaultValue="login" className="w-full">
               <CardHeader className="pb-3">
@@ -270,7 +270,8 @@ export default function Login() {
         </div>
       </div>
       </div>
-      <div className="w-full px-6 pb-8">
+      <footer>
+        <div className="w-full px-6 pb-8 flex justify-center">
         <div className="text-center text-xs text-muted-foreground">
           <p className="uppercase tracking-[0.2em]">Powered by</p>
           <div className="mt-3 flex flex-col items-center">
@@ -284,6 +285,7 @@ export default function Login() {
           </div>
         </div>
       </div>
+      </footer>
     </div>
   );
 }
