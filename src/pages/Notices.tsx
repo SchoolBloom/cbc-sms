@@ -8,7 +8,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { AddNoticeDialog } from "@/components/notices/AddNoticeDialog";
 import { EditNoticeDialog } from "@/components/notices/EditNoticeDialog";
 
-const priorityStyles = { high: "bg-destructive/10 text-destructive border-destructive/20", medium: "bg-warning/10 text-warning border-warning/20", low: "bg-muted text-muted-foreground border-border" };
+const priorityStyles = {
+  low: "bg-muted text-muted-foreground border-border",
+  normal: "bg-info/10 text-info border-info/20",
+  high: "bg-warning/10 text-warning border-warning/20",
+  urgent: "bg-destructive/10 text-destructive border-destructive/20",
+};
 
 export default function Notices() {
   const { user, hasPermission } = useRole();
@@ -37,7 +42,7 @@ export default function Notices() {
   const totalNotices = notices.length;
   const publishedCount = notices.filter((notice) => notice.published).length;
   const draftCount = notices.filter((notice) => !notice.published).length;
-  const highPriorityCount = notices.filter((notice) => notice.priority === "high").length;
+  const highPriorityCount = notices.filter((notice) => ["high", "urgent"].includes(notice.priority)).length;
 
   return (
     <DashboardLayout>
@@ -67,7 +72,7 @@ export default function Notices() {
           </div>
           <div className="bg-card rounded-xl border border-border/50 p-4 flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center"><Users className="w-5 h-5 text-destructive" /></div>
-            <div><p className="text-xl font-bold">{highPriorityCount}</p><p className="text-xs text-muted-foreground">High Priority</p></div>
+            <div><p className="text-xl font-bold">{highPriorityCount}</p><p className="text-xs text-muted-foreground">High/Urgent</p></div>
           </div>
         </div>
       )}
@@ -96,7 +101,12 @@ export default function Notices() {
                 <div>
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <h3 className="font-semibold text-foreground">{notice.title}</h3>
-                    <Badge variant="outline" className={priorityStyles[notice.priority as keyof typeof priorityStyles]}>{notice.priority}</Badge>
+                    <Badge
+                      variant="outline"
+                      className={priorityStyles[notice.priority as keyof typeof priorityStyles] || priorityStyles.low}
+                    >
+                      {notice.priority}
+                    </Badge>
                     {user.role !== "parent" && (
                       <Badge variant="outline" className="bg-success/10 text-success">
                         {notice.published ? "published" : "draft"}
