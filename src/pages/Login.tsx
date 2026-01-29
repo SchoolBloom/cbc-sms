@@ -98,7 +98,7 @@ export default function Login() {
               A calmer way to run school life.
             </h2>
             <p className="text-base text-muted-foreground max-w-lg">
-              Track CBC performance, assign learning areas, and keep families in the loop — all in one place.
+              Track CBC performance, assign learning areas, and keep families in the loop, all in one place.
             </p>
           </div>
 
@@ -123,7 +123,7 @@ export default function Login() {
             <Tabs defaultValue="login" className="w-full">
               <CardHeader className="pb-3">
                 <CardTitle className="text-2xl">Welcome back</CardTitle>
-                <CardDescription>Sign in to continue or create a new account.</CardDescription>
+                <CardDescription>Sign in to continue. New here? Create an account.</CardDescription>
                 <TabsList className="mt-4 grid w-full grid-cols-2 rounded-full border border-[#0B6A62]/20 bg-[linear-gradient(120deg,rgba(11,106,98,0.12),rgba(199,112,64,0.10))] p-1 shadow-[inset_0_0_0_1px_rgba(11,106,98,0.08)]">
                   <TabsTrigger
                     value="login"
