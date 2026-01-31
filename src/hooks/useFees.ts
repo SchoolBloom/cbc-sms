@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { toast } from "sonner";
+import { applyStudentCreditToInvoice } from "@/hooks/feeCredits";
 
 export type Fee = Tables<"fees">;
 export type FeeInsert = TablesInsert<"fees">;
@@ -125,7 +126,8 @@ export function useRecordPayment() {
       if (fetchError) throw fetchError;
 
       const newPaidAmount = Number(currentFee.paid_amount || 0) + amount;
-      const newStatus = newPaidAmount >= Number(currentFee.amount) ? "paid" : "partial";
+      const newStatus =
+        newPaidAmount >= Number(currentFee.amount) ? "paid" : "partial";
 
       const { data, error } = await supabase
         .from("fees")
@@ -161,9 +163,25 @@ export function useCreateInvoice() {
 
   return useMutation({
     mutationFn: async (invoice: FeeInsert) => {
+      let payload = { ...invoice };
+      if (
+        payload.student_id &&
+        typeof payload.amount === "number" &&
+        (payload.paid_amount === undefined || payload.paid_amount === null || payload.paid_amount === 0)
+      ) {
+        const { appliedAmount } = await applyStudentCreditToInvoice(payload.student_id, payload.amount);
+        if (appliedAmount > 0) {
+          payload = {
+            ...payload,
+            paid_amount: appliedAmount,
+            status: appliedAmount >= payload.amount ? "paid" : "partial",
+          };
+        }
+      }
+
       const { data, error } = await supabase
         .from("fees")
-        .insert(invoice)
+        .insert(payload)
         .select()
         .single();
 
@@ -260,16 +278,23 @@ export function useCreateGradeInvoices() {
         return { createdCount: 0 };
       }
 
-      const feesToInsert = missingStudentIds.map((studentId) => ({
-        student_id: studentId,
-        amount,
-        fee_type,
-        term,
-        academic_year,
-        due_date,
-        status: "pending",
-        paid_amount: 0,
-      }));
+      const feesToInsert = [];
+      for (const studentId of missingStudentIds) {
+        const { appliedAmount } = await applyStudentCreditToInvoice(studentId, amount);
+        const status =
+          appliedAmount >= amount ? "paid" : appliedAmount > 0 ? "partial" : "pending";
+
+        feesToInsert.push({
+          student_id: studentId,
+          amount,
+          fee_type,
+          term,
+          academic_year,
+          due_date,
+          status,
+          paid_amount: appliedAmount,
+        });
+      }
 
       const { error: insertError } = await supabase
         .from("fees")

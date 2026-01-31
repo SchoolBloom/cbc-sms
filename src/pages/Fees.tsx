@@ -16,12 +16,13 @@ const statusStyles = {
   paid: "bg-success/10 text-success border-success/20", 
   partial: "bg-warning/10 text-warning border-warning/20", 
   pending: "bg-destructive/10 text-destructive border-destructive/20",
-  unpaid: "bg-destructive/10 text-destructive border-destructive/20"
+  unpaid: "bg-destructive/10 text-destructive border-destructive/20",
 };
 
 export default function Fees() {
   const { user, selectedChildId, setSelectedChildId, hasPermission } = useRole();
   const [searchTerm, setSearchTerm] = useState("");
+  const [classFilter, setClassFilter] = useState("all");
   const canCollect = hasPermission("fees:collect");
   const selectedChild = user.children?.find((child) => child.id === selectedChildId);
 
@@ -37,6 +38,7 @@ export default function Fees() {
     const totalFee = studentFees?.reduce((sum, f) => sum + Number(f.amount), 0) || 0;
     const totalPaid = studentFees?.reduce((sum, f) => sum + Number(f.paid_amount || 0), 0) || 0;
     const balance = totalFee - totalPaid;
+    const hasExcess = balance < 0;
 
     return (
       <DashboardLayout>
@@ -91,8 +93,10 @@ export default function Fees() {
               <p className="text-xl font-bold text-success">{formatCurrency(totalPaid)}</p>
             </div>
             <div className="p-4 bg-primary/10 rounded-xl text-center">
-              <p className="text-sm text-muted-foreground">Balance</p>
-              <p className="text-xl font-bold text-primary">{formatCurrency(balance)}</p>
+              <p className="text-sm text-muted-foreground">{hasExcess ? "Excess" : "Balance"}</p>
+              <p className="text-xl font-bold text-primary">
+                {formatCurrency(Math.abs(balance))}
+              </p>
             </div>
           </div>
         </div>
@@ -130,11 +134,42 @@ export default function Fees() {
     );
   }
 
-  // Filter fees by search term
+  const classOptions = Array.from(
+    new Map(
+      (fees || [])
+        .map((fee: any) => {
+          const classInfo = fee.student?.class;
+          if (!classInfo?.grade) return null;
+          const grade = String(classInfo.grade);
+          const stream = classInfo.stream ? String(classInfo.stream) : "";
+          return {
+            key: `${grade}|${stream}`,
+            label: `Grade ${grade}${stream ? stream : ""}`,
+          };
+        })
+        .filter(Boolean)
+        .map((item) => [item!.key, item!])
+    ).values()
+  );
+
+  const hasUnknownClass = (fees || []).some((fee: any) => !fee.student?.class?.grade);
+
+  // Filter fees by search term and class
   const filteredFees = fees?.filter((fee: any) => {
     const studentName = fee.student?.full_name?.toLowerCase() || "";
     const admNo = fee.student?.admission_number?.toLowerCase() || "";
-    return studentName.includes(searchTerm.toLowerCase()) || admNo.includes(searchTerm.toLowerCase());
+    const matchesSearch =
+      studentName.includes(searchTerm.toLowerCase()) ||
+      admNo.includes(searchTerm.toLowerCase());
+
+    if (classFilter === "all") return matchesSearch;
+    if (classFilter === "unknown") return matchesSearch && !fee.student?.class?.grade;
+
+    const classInfo = fee.student?.class;
+    if (!classInfo?.grade) return false;
+    const grade = String(classInfo.grade);
+    const stream = classInfo.stream ? String(classInfo.stream) : "";
+    return matchesSearch && `${grade}|${stream}` === classFilter;
   }) || [];
 
   // Admin/Bursar view
@@ -237,14 +272,36 @@ export default function Fees() {
       </div>
 
       <div className="bg-card rounded-xl border border-border/50 p-4 mb-6">
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input 
-            placeholder="Search student..." 
-            className="pl-10" 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full sm:max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search student..."
+              className="pl-10"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <Select
+            value={classFilter}
+            onValueChange={setClassFilter}
+            disabled={isLoading || classOptions.length === 0}
+          >
+            <SelectTrigger className="w-full sm:w-56">
+              <SelectValue placeholder="All classes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All classes</SelectItem>
+              {classOptions.map((option) => (
+                <SelectItem key={option.key} value={option.key}>
+                  {option.label}
+                </SelectItem>
+              ))}
+              {hasUnknownClass && (
+                <SelectItem value="unknown">Unknown class</SelectItem>
+              )}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -269,6 +326,7 @@ export default function Fees() {
             <tbody className="divide-y divide-border">
               {filteredFees.map((fee: any) => {
                 const balance = Number(fee.amount) - Number(fee.paid_amount || 0);
+                const isOverpaid = balance < 0;
                 const classInfo = fee.student?.class;
                 return (
                   <tr key={fee.id} className="hover:bg-muted/30">
@@ -282,7 +340,13 @@ export default function Fees() {
                     <td className="px-4 py-3 text-sm text-muted-foreground">{fee.fee_type}</td>
                     <td className="px-4 py-3 text-right text-sm font-medium">{formatCurrency(Number(fee.amount))}</td>
                     <td className="px-4 py-3 text-right text-sm text-success">{formatCurrency(Number(fee.paid_amount || 0))}</td>
-                    <td className="px-4 py-3 text-right text-sm text-destructive font-medium">{formatCurrency(balance)}</td>
+                    <td className="px-4 py-3 text-right text-sm font-medium">
+                      {isOverpaid ? (
+                        <span className="text-success">Excess {formatCurrency(Math.abs(balance))}</span>
+                      ) : (
+                        <span className="text-destructive">{formatCurrency(balance)}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <Badge variant="outline" className={statusStyles[fee.status as keyof typeof statusStyles]}>
                         {fee.status}

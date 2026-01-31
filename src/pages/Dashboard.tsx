@@ -13,6 +13,7 @@ import { useStudentAssessments } from "@/hooks/useAssessments";
 import { useStudentAttendanceHistory } from "@/hooks/useAttendance";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
+import { cn } from "@/lib/utils";
 
 export default function Dashboard() {
   const { user, selectedChildId, setSelectedChildId } = useRole();
@@ -286,6 +287,13 @@ export default function Dashboard() {
   const totalFee = studentFees.reduce((sum, fee) => sum + Number(fee.amount), 0);
   const totalPaid = studentFees.reduce((sum, fee) => sum + Number(fee.paid_amount || 0), 0);
   const balance = totalFee - totalPaid;
+  const balanceStatus = balance < 0 ? "excess" : balance > 0 ? "underpaid" : "settled";
+  const balanceValueClass =
+    balanceStatus === "excess"
+      ? "text-success"
+      : balanceStatus === "underpaid"
+        ? "text-destructive"
+        : "text-foreground";
 
   const latestBySubject = studentAssessments.reduce((acc, assessment) => {
     const existing = acc[assessment.learning_area];
@@ -595,8 +603,15 @@ export default function Dashboard() {
             <StatCard
               title="Fee Balance"
               value={formatCurrency(balance)}
-              subtitle={balance <= 0 ? "Fully paid" : "Outstanding"}
+              subtitle={
+                balanceStatus === "excess"
+                  ? "Excess credit"
+                  : balanceStatus === "underpaid"
+                    ? "Outstanding"
+                    : "Fully paid"
+              }
               icon={CreditCard}
+              valueClassName={balanceValueClass}
             />
             <StatCard
               title="Notices"
@@ -700,7 +715,9 @@ export default function Dashboard() {
                   <div className="border-t border-border pt-2 mt-2">
                     <div className="flex justify-between text-sm">
                       <span className="font-medium text-foreground">Balance</span>
-                      <span className="font-bold text-success">{formatCurrency(balance)}</span>
+                      <span className={cn("font-bold", balanceValueClass)}>
+                        {formatCurrency(balance)}
+                      </span>
                     </div>
                   </div>
                 </div>

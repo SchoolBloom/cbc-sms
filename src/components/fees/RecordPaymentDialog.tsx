@@ -22,6 +22,7 @@ import { useFees, useRecordPayment, formatCurrency } from "@/hooks/useFees";
 export function RecordPaymentDialog() {
   const [open, setOpen] = useState(false);
   const [feeId, setFeeId] = useState("");
+  const [classFilter, setClassFilter] = useState("all");
   const [amount, setAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
@@ -34,6 +35,37 @@ export function RecordPaymentDialog() {
     const balance = Number(f.amount) - Number(f.paid_amount || 0);
     return balance > 0;
   }) || [];
+
+  const hasUnknownClass = unpaidFees.some((fee) => !(fee as any).student?.class?.grade);
+  const classOptions = Array.from(
+    new Map(
+      unpaidFees
+        .map((fee) => {
+          const classInfo = (fee as any).student?.class;
+          if (!classInfo?.grade) return null;
+          const grade = String(classInfo.grade);
+          const stream = classInfo.stream ? String(classInfo.stream) : "";
+          return {
+            key: `${grade}|${stream}`,
+            label: `Grade ${grade}${stream ? stream : ""}`,
+          };
+        })
+        .filter(Boolean)
+        .map((item) => [item!.key, item!])
+    ).values()
+  );
+
+  const filteredFees = classFilter === "all"
+    ? unpaidFees
+    : classFilter === "unknown"
+      ? unpaidFees.filter((fee) => !(fee as any).student?.class?.grade)
+      : unpaidFees.filter((fee) => {
+          const classInfo = (fee as any).student?.class;
+          if (!classInfo?.grade) return false;
+          const grade = String(classInfo.grade);
+          const stream = classInfo.stream ? String(classInfo.stream) : "";
+          return `${grade}|${stream}` === classFilter;
+        });
 
   const selectedFee = fees?.find((f) => f.id === feeId);
   const maxPayment = selectedFee 
@@ -61,6 +93,7 @@ export function RecordPaymentDialog() {
 
   const resetForm = () => {
     setFeeId("");
+    setClassFilter("all");
     setAmount("");
     setPaymentMethod("");
     setPaymentReference("");
@@ -80,9 +113,32 @@ export function RecordPaymentDialog() {
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
+            <Label>Filter by Class</Label>
+            <Select value={classFilter} onValueChange={(value) => {
+              setClassFilter(value);
+              setFeeId("");
+            }}>
+              <SelectTrigger disabled={isLoading || unpaidFees.length === 0}>
+                <SelectValue placeholder="All classes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All classes</SelectItem>
+                {classOptions.map((option) => (
+                  <SelectItem key={option.key} value={option.key}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+                {hasUnknownClass && (
+                  <SelectItem value="unknown">Unknown class</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
             <Label>Select Fee Record</Label>
             <Select value={feeId} onValueChange={setFeeId}>
-              <SelectTrigger disabled={isLoading || unpaidFees.length === 0}>
+              <SelectTrigger disabled={isLoading || filteredFees.length === 0}>
                 <SelectValue placeholder="Select student fee" />
               </SelectTrigger>
               <SelectContent>
@@ -90,12 +146,12 @@ export function RecordPaymentDialog() {
                   <SelectItem value="loading" disabled>
                     Loading fee records...
                   </SelectItem>
-                ) : unpaidFees.length === 0 ? (
+                ) : filteredFees.length === 0 ? (
                   <SelectItem value="none" disabled>
-                    No unpaid fee records found
+                    No unpaid fee records for this class
                   </SelectItem>
                 ) : (
-                  unpaidFees.map((fee) => {
+                  filteredFees.map((fee) => {
                     const balance = Number(fee.amount) - Number(fee.paid_amount || 0);
                     const studentName = (fee as any).student?.full_name || "Unknown";
                     return (
@@ -130,14 +186,13 @@ export function RecordPaymentDialog() {
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="Enter amount"
-              max={maxPayment}
               min={1}
             />
-            {maxPayment > 0 && (
-              <p className="text-xs text-muted-foreground">
-                Maximum: {formatCurrency(maxPayment)}
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground">
+              {selectedFee
+                ? `Balance: ${formatCurrency(maxPayment)}. Excess will be credited to the next invoice.`
+                : "Excess will be credited to the next invoice."}
+            </p>
           </div>
 
           <div className="space-y-2">

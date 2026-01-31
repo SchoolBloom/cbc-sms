@@ -11,6 +11,7 @@ interface StatCardProps {
     isPositive: boolean;
   };
   variant?: "default" | "primary" | "accent" | "success";
+  valueClassName?: string;
 }
 
 const variantStyles = {
@@ -27,7 +28,7 @@ const iconVariantStyles = {
   success: "bg-success-foreground/20 text-success-foreground",
 };
 
-export function StatCard({ title, value, subtitle, icon: Icon, trend, variant = "default" }: StatCardProps) {
+export function StatCard({ title, value, subtitle, icon: Icon, trend, variant = "default", valueClassName }: StatCardProps) {
   return (
     <div className={cn("stat-card", variantStyles[variant])}>
       <div className="flex items-start justify-between">
@@ -38,7 +39,7 @@ export function StatCard({ title, value, subtitle, icon: Icon, trend, variant = 
           )}>
             {title}
           </p>
-          <p className="text-3xl font-bold font-display mt-2">{value}</p>
+          <p className={cn("text-3xl font-bold font-display mt-2", valueClassName)}>{value}</p>
           {subtitle && (
             <p className={cn(
               "text-sm mt-1",

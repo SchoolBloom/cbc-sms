@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { applyStudentCreditToInvoice } from "@/hooks/feeCredits";
 import { toast } from "sonner";
 
 export interface FeeSchedule {
@@ -121,16 +122,23 @@ export function useUpsertFeeSchedule() {
         return { createdCount: 0 };
       }
 
-      const feesToInsert = missingStudentIds.map((studentId) => ({
-        student_id: studentId,
-        amount: schedule.amount,
-        fee_type: schedule.fee_type,
-        term: schedule.term,
-        academic_year: schedule.academic_year,
-        due_date: schedule.due_date,
-        status: "pending",
-        paid_amount: 0,
-      }));
+      const feesToInsert = [];
+      for (const studentId of missingStudentIds) {
+        const { appliedAmount } = await applyStudentCreditToInvoice(studentId, schedule.amount);
+        const status =
+          appliedAmount >= schedule.amount ? "paid" : appliedAmount > 0 ? "partial" : "pending";
+
+        feesToInsert.push({
+          student_id: studentId,
+          amount: schedule.amount,
+          fee_type: schedule.fee_type,
+          term: schedule.term,
+          academic_year: schedule.academic_year,
+          due_date: schedule.due_date,
+          status,
+          paid_amount: appliedAmount,
+        });
+      }
 
       const { error: insertError } = await supabase
         .from("fees")
