@@ -34,6 +34,7 @@ import { useStudents, useUpdateStudentStatus, useDeleteStudent, Student } from "
 import { AddStudentDialog } from "@/components/students/AddStudentDialog";
 import { StudentProfileDialog } from "@/components/students/StudentProfileDialog";
 import { EditStudentDialog } from "@/components/students/EditStudentDialog";
+import { useSchoolScope } from "@/hooks/useSchoolScope";
 
 const statusColors = {
   active: "bg-success/10 text-success border-success/20",
@@ -45,6 +46,7 @@ const statusColors = {
 export default function Students() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { allowedGrades, gradeBandLabel } = useSchoolScope();
   const [searchQuery, setSearchQuery] = useState("");
   const [gradeFilter, setGradeFilter] = useState("all");
   const [viewStudent, setViewStudent] = useState<Student | null>(null);
@@ -81,7 +83,7 @@ export default function Students() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="page-title font-display">Students</h1>
-            <p className="page-subtitle">Manage student records and enrollment</p>
+            <p className="page-subtitle">Manage student records and enrollment for {gradeBandLabel}</p>
           </div>
           {canWrite && <AddStudentDialog />}
         </div>
@@ -105,17 +107,11 @@ export default function Students() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Grades</SelectItem>
-              <SelectItem value="PP1">PP1</SelectItem>
-              <SelectItem value="PP2">PP2</SelectItem>
-              <SelectItem value="Grade 1">Grade 1</SelectItem>
-              <SelectItem value="Grade 2">Grade 2</SelectItem>
-              <SelectItem value="Grade 3">Grade 3</SelectItem>
-              <SelectItem value="Grade 4">Grade 4</SelectItem>
-              <SelectItem value="Grade 5">Grade 5</SelectItem>
-              <SelectItem value="Grade 6">Grade 6</SelectItem>
-              <SelectItem value="Grade 7">Grade 7</SelectItem>
-              <SelectItem value="Grade 8">Grade 8</SelectItem>
-              <SelectItem value="Grade 9">Grade 9</SelectItem>
+              {allowedGrades.map((grade) => (
+                <SelectItem key={grade} value={grade}>
+                  {grade}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Button
@@ -173,6 +169,9 @@ export default function Students() {
                     Class
                   </th>
                   <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
+                    Pathway
+                  </th>
+                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
                     Parent/Guardian
                   </th>
                   <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
@@ -213,6 +212,9 @@ export default function Students() {
                       <span className="text-sm text-foreground">
                         {student.classes ? `${student.classes.grade} ${student.classes.stream}` : "-"}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-sm text-muted-foreground">{student.pathway || "-"}</span>
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-sm text-muted-foreground">

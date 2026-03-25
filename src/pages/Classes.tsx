@@ -33,8 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-
-const grades = ["PP1", "PP2", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6", "Grade 7", "Grade 8", "Grade 9"];
+import { useSchoolScope } from "@/hooks/useSchoolScope";
 
 const classSchema = z.object({
   grade: z.string().min(1, "Please select a grade"),
@@ -43,7 +42,7 @@ const classSchema = z.object({
 
 type ClassFormData = z.infer<typeof classSchema>;
 
-function AddClassDialog() {
+function AddClassDialog({ grades }: { grades: string[] }) {
   const [open, setOpen] = useState(false);
   const createClass = useCreateClass();
   
@@ -127,24 +126,24 @@ function AddClassDialog() {
 
 export default function Classes() {
   const { user } = useAuth();
+  const { allowedGrades, gradeBandLabel } = useSchoolScope();
   const { data: classes = [], isLoading } = useClassesWithStudentCount();
   const { data: teachers = [] } = useTeachers();
   const assignTeacher = useAssignClassTeacher();
   
   const canWrite = user?.role === "admin";
 
-  // Group classes by grade
-  const groupedClasses = classes.reduce((acc, cls) => {
-    if (!acc[cls.grade]) acc[cls.grade] = [];
-    acc[cls.grade].push(cls);
-    return acc;
-  }, {} as Record<string, typeof classes>);
-
-  const totalStudents = classes.reduce((sum, c) => sum + (c.student_count || 0), 0);
   const teacherMap = useMemo(
     () => new Map(teachers.map((teacher) => [teacher.user_id, teacher.full_name])),
     [teachers]
   );
+  const visibleClasses = classes.filter((cls) => allowedGrades.includes(cls.grade));
+  const groupedClasses = visibleClasses.reduce((acc, cls) => {
+    if (!acc[cls.grade]) acc[cls.grade] = [];
+    acc[cls.grade].push(cls);
+    return acc;
+  }, {} as Record<string, typeof classes>);
+  const totalStudents = visibleClasses.reduce((sum, c) => sum + (c.student_count || 0), 0);
 
   return (
     <DashboardLayout>
@@ -153,9 +152,9 @@ export default function Classes() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="page-title font-display">Classes</h1>
-            <p className="page-subtitle">CBC academic structure (PP1 - Grade 9)</p>
+            <p className="page-subtitle">Academic structure for {gradeBandLabel}</p>
           </div>
-          {canWrite && <AddClassDialog />}
+          {canWrite && <AddClassDialog grades={allowedGrades} />}
         </div>
       </div>
 
@@ -166,7 +165,7 @@ export default function Classes() {
             <BookOpen className="w-6 h-6 text-primary" />
           </div>
           <div>
-            <p className="text-2xl font-bold font-display text-foreground">{classes.length}</p>
+            <p className="text-2xl font-bold font-display text-foreground">{visibleClasses.length}</p>
             <p className="text-sm text-muted-foreground">Total Classes</p>
           </div>
         </div>
@@ -184,7 +183,7 @@ export default function Classes() {
             <GraduationCap className="w-6 h-6 text-accent-foreground" />
           </div>
           <div>
-            <p className="text-2xl font-bold font-display text-foreground">11</p>
+            <p className="text-2xl font-bold font-display text-foreground">{allowedGrades.length}</p>
             <p className="text-sm text-muted-foreground">Grade Levels</p>
           </div>
         </div>
@@ -195,13 +194,13 @@ export default function Classes() {
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-primary" />
         </div>
-      ) : classes.length === 0 ? (
+      ) : visibleClasses.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground bg-card rounded-xl border border-border/50">
           No classes created yet. Add your first class!
         </div>
       ) : (
         <div className="space-y-6">
-          {grades.map((grade) => {
+          {allowedGrades.map((grade) => {
             const gradeClasses = groupedClasses[grade];
             if (!gradeClasses || gradeClasses.length === 0) return null;
             

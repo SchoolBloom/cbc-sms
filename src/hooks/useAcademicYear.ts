@@ -56,7 +56,7 @@ export function useUpsertAcademicYear() {
             term3_end: payload.term3_end || null,
             is_current: payload.is_current,
           },
-          { onConflict: "label" }
+          { onConflict: "school_id,label" }
         );
       if (error) throw error;
     },

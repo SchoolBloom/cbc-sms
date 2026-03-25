@@ -14,6 +14,7 @@ import {
   UserCheck,
   UserRound,
   Calendar,
+  Network,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,11 +24,11 @@ interface NavItem {
   name: string;
   href: string;
   icon: typeof LayoutDashboard;
-  roles: ("admin" | "teacher" | "parent" | "bursar")[];
+  roles: ("admin" | "teacher" | "parent" | "bursar" | "system_admin")[];
 }
 
 const navigationItems: NavItem[] = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["admin", "teacher", "parent", "bursar"] },
+  { name: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["admin", "teacher", "parent", "bursar", "system_admin"] },
   { name: "Students", href: "/students", icon: Users, roles: ["admin"] },
   { name: "Classes", href: "/classes", icon: GraduationCap, roles: ["admin", "teacher"] },
   { name: "Assignments", href: "/assignments", icon: BookOpenCheck, roles: ["admin"] },
@@ -42,7 +43,7 @@ const navigationItems: NavItem[] = [
 ];
 
 const bottomItems: NavItem[] = [
-  { name: "Settings", href: "/settings", icon: Settings, roles: ["admin"] },
+  { name: "Settings", href: "/settings", icon: Settings, roles: ["admin", "teacher", "parent", "bursar", "system_admin"] },
 ];
 
 const roleLabels: Record<string, string> = {
@@ -50,6 +51,7 @@ const roleLabels: Record<string, string> = {
   teacher: "Teacher",
   parent: "Parent",
   bursar: "Bursar",
+  system_admin: "System Admin",
 };
 
 const roleColors: Record<string, string> = {
@@ -57,6 +59,7 @@ const roleColors: Record<string, string> = {
   teacher: "bg-success text-success-foreground",
   parent: "bg-accent text-accent-foreground",
   bursar: "bg-info text-info-foreground",
+  system_admin: "bg-warning text-warning-foreground",
 };
 
 interface AppSidebarContentProps {
@@ -87,11 +90,17 @@ export function AppSidebarContent({ onNavigate }: AppSidebarContentProps) {
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-sidebar-border">
         <div className="w-10 h-10 rounded-xl bg-sidebar-primary flex items-center justify-center">
-          <GraduationCap className="w-6 h-6 text-sidebar-primary-foreground" />
+          {userRole === "system_admin" ? (
+            <Network className="w-6 h-6 text-sidebar-primary-foreground" />
+          ) : (
+            <GraduationCap className="w-6 h-6 text-sidebar-primary-foreground" />
+          )}
         </div>
         <div>
           <h1 className="font-display font-bold text-lg text-sidebar-foreground">School Bloom</h1>
-          <p className="text-xs text-sidebar-foreground/60">School Management</p>
+          <p className="text-xs text-sidebar-foreground/60">
+            {userRole === "system_admin" ? "Platform Console" : "School Management"}
+          </p>
         </div>
       </div>
 

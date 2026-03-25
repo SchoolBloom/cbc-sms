@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useSchoolScope } from "@/hooks/useSchoolScope";
 
 export interface Parent {
   id: string;
@@ -125,6 +126,7 @@ export function useParentsWithChildren(
 
 export function useAssignParentRole() {
   const queryClient = useQueryClient();
+  const { data: schoolScope } = useSchoolScope();
 
   return useMutation({
     mutationFn: async ({ parentId, email }: { parentId: string; email: string }) => {
@@ -144,9 +146,22 @@ export function useAssignParentRole() {
         throw new Error("No user found for that email. Ask the parent to sign up first.");
       }
 
+      const { error: profileUpdateError } = await supabase
+        .from("profiles")
+        .update({
+          email: normalizedEmail,
+          ...(schoolScope?.schoolId ? { school_id: schoolScope.schoolId } : {}),
+        })
+        .eq("user_id", profile.user_id);
+      if (profileUpdateError) throw profileUpdateError;
+
       const { error: parentUpdateError } = await supabase
         .from("parents")
-        .update({ user_id: profile.user_id, email: normalizedEmail })
+        .update({
+          user_id: profile.user_id,
+          email: normalizedEmail,
+          ...(schoolScope?.schoolId ? { school_id: schoolScope.schoolId } : {}),
+        })
         .eq("id", parentId);
 
       if (parentUpdateError) throw parentUpdateError;
@@ -180,6 +195,7 @@ export function useAssignParentRole() {
 
 export function useUpdateParent() {
   const queryClient = useQueryClient();
+  const { data: schoolScope } = useSchoolScope();
 
   return useMutation({
     mutationFn: async ({
@@ -240,7 +256,11 @@ export function useUpdateParent() {
 
           const { error: parentUpdateError } = await supabase
             .from("parents")
-            .update({ user_id: profile.user_id, email: normalizedEmail })
+            .update({
+              user_id: profile.user_id,
+              email: normalizedEmail,
+              ...(schoolScope?.schoolId ? { school_id: schoolScope.schoolId } : {}),
+            })
             .eq("id", id);
           if (parentUpdateError) throw parentUpdateError;
         }

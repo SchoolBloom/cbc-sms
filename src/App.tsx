@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth, type AppRole } from "@/contexts/AuthContext";
 import { RoleProvider } from "@/contexts/RoleContext";
 import Dashboard from "./pages/Dashboard";
 import Students from "./pages/Students";
@@ -52,13 +52,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-type AppRole = "admin" | "teacher" | "parent" | "bursar";
-
 const roleDefaultRoutes: Record<AppRole, string> = {
   admin: "/",
   teacher: "/",
   parent: "/",
   bursar: "/",
+  system_admin: "/",
 };
 
 function getDefaultRoute(role: AppRole | null | undefined) {
@@ -141,7 +140,7 @@ function AppRoutes() {
       <Route path="/reports" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent", "bursar"]}><Reports /></RoleProtectedRoute>} />
       <Route path="/assignments" element={<RoleProtectedRoute allowedRoles={["admin"]}><Assignments /></RoleProtectedRoute>} />
       <Route path="/subjects" element={<Navigate to="/assignments" replace />} />
-      <Route path="/settings" element={<RoleProtectedRoute allowedRoles={["admin"]}><Settings /></RoleProtectedRoute>} />
+      <Route path="/settings" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent", "bursar", "system_admin"]}><Settings /></RoleProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

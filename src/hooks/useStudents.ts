@@ -12,6 +12,7 @@ export interface Student {
   class_id: string | null;
   parent_id: string | null;
   parent_id_secondary: string | null;
+  pathway: string | null;
   medical_notes: string | null;
   status: string;
   photo_url: string | null;
@@ -131,6 +132,7 @@ export function useUpdateStudent() {
         class_id?: string | null;
         parent_id?: string | null;
         parent_id_secondary?: string | null;
+        pathway?: string | null;
         medical_notes?: string | null;
         status?: string;
       };

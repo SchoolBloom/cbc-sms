@@ -55,6 +55,10 @@ export function StudentProfileDialog({ student, open, onOpenChange }: StudentPro
               </p>
             </div>
             <div>
+              <p className="text-xs text-muted-foreground">Pathway</p>
+              <p className="font-medium text-foreground">{student.pathway || "-"}</p>
+            </div>
+            <div>
               <p className="text-xs text-muted-foreground">Status</p>
               <Badge variant="outline" className={statusColors[student.status as keyof typeof statusColors]}>
                 {student.status}

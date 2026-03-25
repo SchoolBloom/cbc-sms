@@ -30,8 +30,10 @@ import {
   useSubjects,
 } from "@/hooks/useSubjects";
 import { LEARNING_AREAS, LEARNING_AREAS_BY_LEVEL } from "@/hooks/useAssessments";
+import { useSchoolScope } from "@/hooks/useSchoolScope";
 
 export default function Assignments() {
+  const { supportsPrimaryJunior, supportsSenior, gradeBandLabel } = useSchoolScope();
   const [selectedSubjectId, setSelectedSubjectId] = useState("");
   const [selectedClassId, setSelectedClassId] = useState("");
   const [selectedTeacherId, setSelectedTeacherId] = useState("");
@@ -64,12 +66,14 @@ export default function Assignments() {
     );
   }, [subjects]);
 
-  const learningAreaGroups = [
-    { title: "Pre-Primary (PP1 & PP2)", items: LEARNING_AREAS_BY_LEVEL.prePrimary },
-    { title: "Lower Primary (Grades 1–3)", items: LEARNING_AREAS_BY_LEVEL.lowerPrimary },
-    { title: "Upper Primary (Grades 4–6)", items: LEARNING_AREAS_BY_LEVEL.upperPrimary },
-    { title: "Junior Secondary (Grades 7–9)", items: LEARNING_AREAS_BY_LEVEL.juniorSecondary },
-  ];
+  const learningAreaGroups = supportsPrimaryJunior
+    ? [
+        { title: "Pre-Primary (PP1 & PP2)", items: LEARNING_AREAS_BY_LEVEL.prePrimary },
+        { title: "Lower Primary (Grades 1–3)", items: LEARNING_AREAS_BY_LEVEL.lowerPrimary },
+        { title: "Upper Primary (Grades 4–6)", items: LEARNING_AREAS_BY_LEVEL.upperPrimary },
+        { title: "Junior Secondary (Grades 7–9)", items: LEARNING_AREAS_BY_LEVEL.juniorSecondary },
+      ]
+    : [];
 
   useEffect(() => {
     if (!selectedSubjectId) return;
@@ -94,7 +98,7 @@ export default function Assignments() {
       <div className="page-header">
         <div>
           <h1 className="page-title font-display">Assignments</h1>
-          <p className="page-subtitle">Assign learning areas to classes and teachers</p>
+          <p className="page-subtitle">Assign learning areas to classes and teachers for {gradeBandLabel}</p>
         </div>
       </div>
 
@@ -102,6 +106,11 @@ export default function Assignments() {
         <div className="space-y-6">
           <div className="bg-card rounded-xl border border-border/50 p-5 space-y-4">
             <h2 className="font-display font-semibold text-foreground">Assign Learning Area</h2>
+            {supportsSenior && !supportsPrimaryJunior && (
+              <div className="rounded-lg border border-border/50 bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+                Senior secondary subject groupings are not configured yet. This view is limited to Grade 10 to Grade 12 classes.
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <Select value={selectedSubjectId} onValueChange={setSelectedSubjectId}>
                 <SelectTrigger>
@@ -197,6 +206,11 @@ export default function Assignments() {
                   </div>
                 </div>
               ))}
+              {learningAreaGroups.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No learning area catalogue is configured for this school category yet.
+                </p>
+              )}
             </div>
           </div>
         </div>

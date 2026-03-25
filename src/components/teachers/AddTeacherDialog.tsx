@@ -65,20 +65,20 @@ export function AddTeacherDialog({ trigger }: AddTeacherDialogProps) {
         throw new Error("No user found for that email. Ask the teacher to sign up first.");
       }
 
-      const profileUpdates: Record<string, string> = {};
+      const profileUpdates: Record<string, string> = {
+        email: normalizedEmail,
+      };
       if (data.full_name?.trim()) profileUpdates.full_name = data.full_name.trim();
       if (data.phone?.trim()) profileUpdates.phone = data.phone.trim();
 
       const finalFullName = profileUpdates.full_name || profile.full_name;
       const finalPhone = profileUpdates.phone || profile.phone;
 
-      if (Object.keys(profileUpdates).length > 0) {
-        const { error: updateError } = await supabase
-          .from("profiles")
-          .update(profileUpdates)
-          .eq("id", profile.id);
-        if (updateError) throw updateError;
-      }
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update(profileUpdates)
+        .eq("id", profile.id);
+      if (updateError) throw updateError;
 
       const { data: existingRole, error: roleCheckError } = await supabase
         .from("user_roles")

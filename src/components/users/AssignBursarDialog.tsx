@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useSchoolScope } from "@/hooks/useSchoolScope";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +38,7 @@ interface AssignBursarDialogProps {
 
 export function AssignBursarDialog({ trigger }: AssignBursarDialogProps) {
   const [open, setOpen] = useState(false);
+  const { data: schoolScope } = useSchoolScope();
 
   const form = useForm<BursarFormData>({
     resolver: zodResolver(bursarSchema),
@@ -57,6 +59,15 @@ export function AssignBursarDialog({ trigger }: AssignBursarDialogProps) {
       if (!profile) {
         throw new Error("No user found for that email. Ask the bursar to sign up first.");
       }
+
+      const { error: profileUpdateError } = await supabase
+        .from("profiles")
+        .update({
+          email: normalizedEmail,
+          ...(schoolScope?.schoolId ? { school_id: schoolScope.schoolId } : {}),
+        })
+        .eq("user_id", profile.user_id);
+      if (profileUpdateError) throw profileUpdateError;
 
       const { data: existingRole, error: roleCheckError } = await supabase
         .from("user_roles")

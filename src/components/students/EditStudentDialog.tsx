@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { Student, useUpdateStudent } from "@/hooks/useStudents";
+import { SENIOR_SECONDARY_PATHWAYS, isSeniorSecondaryGrade } from "@/lib/schoolCategories";
 
 const studentSchema = z.object({
   admission_number: z.string().min(1, "Admission number is required").max(20),
@@ -20,6 +21,7 @@ const studentSchema = z.object({
   date_of_birth: z.string().min(1, "Date of birth is required"),
   gender: z.enum(["male", "female"], { required_error: "Please select gender" }),
   class_id: z.string().optional(),
+  pathway: z.enum(SENIOR_SECONDARY_PATHWAYS).optional(),
   parent_id: z.string().optional(),
   parent_id_secondary: z.string().optional(),
   medical_notes: z.string().max(500).optional(),
@@ -51,6 +53,7 @@ export function EditStudentDialog({ student, open, onOpenChange }: EditStudentDi
       date_of_birth: "",
       gender: undefined,
       class_id: "",
+      pathway: undefined,
       parent_id: "",
       parent_id_secondary: "",
       medical_notes: "",
@@ -66,6 +69,7 @@ export function EditStudentDialog({ student, open, onOpenChange }: EditStudentDi
       date_of_birth: student.date_of_birth,
       gender: student.gender as "male" | "female",
       class_id: student.class_id || "",
+      pathway: student.pathway || undefined,
       parent_id: student.parent_id || "",
       parent_id_secondary: student.parent_id_secondary || "",
       medical_notes: student.medical_notes || "",
@@ -73,6 +77,7 @@ export function EditStudentDialog({ student, open, onOpenChange }: EditStudentDi
   }, [form, student]);
   const primaryParentId = form.watch("parent_id");
   const secondaryParentId = form.watch("parent_id_secondary");
+  const selectedClassId = form.watch("class_id");
 
   const { data: classes = [] } = useQuery({
     queryKey: ["classes"],
@@ -86,6 +91,15 @@ export function EditStudentDialog({ student, open, onOpenChange }: EditStudentDi
     },
     enabled: open,
   });
+  const selectedClass = classes.find((cls) => cls.id === selectedClassId);
+  const requiresPathway = isSeniorSecondaryGrade(selectedClass?.grade);
+
+  useEffect(() => {
+    if (!requiresPathway) {
+      form.setValue("pathway", undefined);
+      form.clearErrors("pathway");
+    }
+  }, [form, requiresPathway]);
 
   const { data: parents = [] } = useQuery({
     queryKey: ["parents"],
@@ -102,6 +116,10 @@ export function EditStudentDialog({ student, open, onOpenChange }: EditStudentDi
 
   const onSubmit = (data: StudentFormData) => {
     if (!student) return;
+    if (requiresPathway && !data.pathway) {
+      form.setError("pathway", { message: "Pathway is required for Grade 10 to Grade 12 students" });
+      return;
+    }
     updateStudent.mutate(
       {
         id: student.id,
@@ -112,6 +130,7 @@ export function EditStudentDialog({ student, open, onOpenChange }: EditStudentDi
           date_of_birth: data.date_of_birth,
           gender: data.gender,
           class_id: data.class_id || null,
+          pathway: requiresPathway ? data.pathway || null : null,
           parent_id: data.parent_id || null,
           parent_id_secondary: data.parent_id_secondary || null,
           medical_notes: data.medical_notes?.trim() || null,
@@ -235,6 +254,33 @@ export function EditStudentDialog({ student, open, onOpenChange }: EditStudentDi
                 </FormItem>
               )}
             />
+
+            {requiresPathway && (
+              <FormField
+                control={form.control}
+                name="pathway"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Pathway *</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select pathway" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {SENIOR_SECONDARY_PATHWAYS.map((pathway) => (
+                          <SelectItem key={pathway} value={pathway}>
+                            {pathway}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}

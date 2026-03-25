@@ -2,8 +2,21 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { AttendanceChart } from "@/components/dashboard/AttendanceChart";
-import { Users, GraduationCap, CreditCard, TrendingUp, BookOpen, ClipboardCheck, Bell, Calendar } from "lucide-react";
+import {
+  Users,
+  GraduationCap,
+  CreditCard,
+  TrendingUp,
+  BookOpen,
+  ClipboardCheck,
+  Bell,
+  Calendar,
+  Building2,
+  ServerCog,
+  ShieldCheck,
+} from "lucide-react";
 import { useRole } from "@/contexts/RoleContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
@@ -17,6 +30,7 @@ import { cn } from "@/lib/utils";
 
 export default function Dashboard() {
   const { user, selectedChildId, setSelectedChildId } = useRole();
+  const { session } = useAuth();
   const { data: academicYear } = useAcademicYear();
   const selectedChild = user.children?.find((child) => child.id === selectedChildId);
   const childInitials = selectedChild?.full_name
@@ -29,6 +43,42 @@ export default function Dashboard() {
   const assessmentWeekStart = new Date();
   assessmentWeekStart.setDate(assessmentWeekStart.getDate() - 7);
   const assessmentWeekDate = assessmentWeekStart.toISOString();
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3001";
+
+  const { data: systemSummary } = useQuery({
+    queryKey: ["system-admin-summary"],
+    queryFn: async () => {
+      if (!session?.access_token) throw new Error("Missing session.");
+      const response = await fetch(`${apiUrl}/api/system/summary`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || "Failed to load system summary.");
+      }
+      return response.json();
+    },
+    enabled: user.role === "system_admin" && Boolean(session?.access_token),
+  });
+
+  const { data: apiHealth = { ok: false, timestamp: null as string | null } } = useQuery({
+    queryKey: ["system-admin-api-health", apiUrl],
+    queryFn: async () => {
+      const response = await fetch(`${apiUrl}/api/health`);
+      if (!response.ok) {
+        throw new Error("Failed to reach API health endpoint.");
+      }
+      const payload = await response.json();
+      return {
+        ok: Boolean(payload.ok),
+        timestamp: payload.timestamp || null,
+      };
+    },
+    enabled: user.role === "system_admin",
+    retry: 0,
+  });
 
   const { data: studentCount = 0 } = useQuery({
     queryKey: ["dashboard-student-count", user.role],
@@ -323,6 +373,22 @@ export default function Dashboard() {
     performanceBreakdown.below;
   const performancePercent = (count: number) =>
     performanceTotal > 0 ? Math.round((count / performanceTotal) * 100) : 0;
+  const systemSchools = systemSummary?.schools || [];
+  const totalSignups = systemSummary?.metrics?.totalSignups || 0;
+  const assignedRoles = systemSummary?.metrics?.assignedRoles || 0;
+  const systemActiveSchools = systemSummary?.metrics?.activeSchools || 0;
+  const systemOnboardingSchools = systemSummary?.metrics?.onboardingSchools || 0;
+  const schoolsWithBasic = systemSummary?.metrics?.schoolsWithBasic || 0;
+  const schoolsWithSenior = systemSummary?.metrics?.schoolsWithSenior || 0;
+  const schoolsWithBoth = systemSummary?.metrics?.schoolsWithBoth || 0;
+  const roleBreakdown = (systemSummary?.metrics?.roleBreakdown || {}) as Record<string, number>;
+  const signupSeries = systemSummary?.signupSeries || [];
+  const systemRoleSummary = [
+    `${roleBreakdown.admin || 0} school admins`,
+    `${roleBreakdown.teacher || 0} teachers`,
+    `${roleBreakdown.parent || 0} parents`,
+    `${roleBreakdown.bursar || 0} bursars`,
+  ].join(" • ");
 
   // Role-specific greeting
   const getGreeting = () => {
@@ -344,6 +410,8 @@ export default function Dashboard() {
         return "Stay updated on your child's progress and school activities.";
       case "bursar":
         return "Overview of fee collection and financial status.";
+      case "system_admin":
+        return "Platform overview across onboarded schools and user signups.";
     }
   };
 
@@ -378,11 +446,172 @@ export default function Dashboard() {
             <p className="page-subtitle">{getSubtitle()}</p>
           </div>
           <div className="text-right">
-            <p className="text-sm font-medium text-foreground">{termLabel}</p>
-            <p className="text-xs text-muted-foreground">{weekLabel}</p>
+            {user.role === "system_admin" ? (
+              <>
+                <p className="text-sm font-medium text-foreground">Platform status</p>
+                <p className="text-xs text-muted-foreground">
+                  {apiHealth.ok ? "API responding normally" : "API health check unavailable"}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-foreground">{termLabel}</p>
+                <p className="text-xs text-muted-foreground">{weekLabel}</p>
+              </>
+            )}
           </div>
         </div>
       </div>
+
+      {user.role === "system_admin" && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+            <StatCard
+              title="Schools"
+              value={systemSchools.length}
+              subtitle={`${systemActiveSchools} active • ${schoolsWithBoth} with both categories`}
+              icon={Building2}
+            />
+            <StatCard
+              title="System Signups"
+              value={totalSignups}
+              subtitle="Accounts created across the platform"
+              icon={Users}
+              variant="primary"
+            />
+            <StatCard
+              title="Assigned Roles"
+              value={assignedRoles}
+              subtitle={systemRoleSummary}
+              icon={Users}
+            />
+            <StatCard
+              title="System Health"
+              value={apiHealth.ok ? "Healthy" : "Degraded"}
+              subtitle={
+                apiHealth.timestamp
+                  ? `Last check ${new Date(apiHealth.timestamp).toLocaleString("en-KE", {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}`
+                  : "API endpoint not reached"
+              }
+              icon={ServerCog}
+              variant={apiHealth.ok ? "success" : "accent"}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div className="xl:col-span-2 space-y-6">
+              <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
+                <div className="px-5 py-4 border-b border-border">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="font-display font-semibold text-foreground">Schools Using School Bloom</h3>
+                      <p className="text-sm text-muted-foreground">Registered schools and the categories they serve.</p>
+                    </div>
+                    <Badge variant="outline">{systemSchools.length} schools</Badge>
+                  </div>
+                </div>
+                <div className="divide-y divide-border">
+                  {systemSchools.length > 0 ? (
+                    systemSchools.map((school) => (
+                      <div key={school.id} className="px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="font-medium text-foreground">{school.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {school.code}
+                            {(school.county || school.subcounty) &&
+                              ` • ${[school.subcounty, school.county].filter(Boolean).join(", ")}`}
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {(school.school_categories || []).map((category: string) => (
+                              <Badge key={category} variant="outline">
+                                {category === "primary_junior_secondary" ? "PP1 to Grade 9" : "Grade 10 to 12"}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "capitalize",
+                              school.status === "active" && "border-success/40 bg-success/10 text-success",
+                              school.status === "onboarding" && "border-warning/40 bg-warning/10 text-warning",
+                              school.status === "suspended" && "border-destructive/40 bg-destructive/10 text-destructive"
+                            )}
+                          >
+                            {school.status}
+                          </Badge>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(school.created_at).toLocaleDateString("en-KE", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="px-5 py-8 text-sm text-muted-foreground">No schools have been registered yet.</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="bg-card rounded-xl border border-border/50 p-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <ShieldCheck className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-semibold text-foreground">Platform Snapshot</h3>
+                    <p className="text-sm text-muted-foreground">Role allocation and system readiness.</p>
+                  </div>
+                </div>
+                <div className="space-y-3 text-sm">
+                  {[
+                    { label: "PP1 to Grade 9 schools", value: schoolsWithBasic },
+                    { label: "Grade 10 to 12 schools", value: schoolsWithSenior },
+                    { label: "Schools with both", value: schoolsWithBoth },
+                    { label: "System admins", value: roleBreakdown.system_admin || 0 },
+                    { label: "School admins", value: roleBreakdown.admin || 0 },
+                    { label: "Teachers", value: roleBreakdown.teacher || 0 },
+                    { label: "Parents", value: roleBreakdown.parent || 0 },
+                    { label: "Bursars", value: roleBreakdown.bursar || 0 },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                      <span className="text-muted-foreground">{item.label}</span>
+                      <span className="font-medium text-foreground">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-card rounded-xl border border-border/50 p-5">
+                <h3 className="font-display font-semibold text-foreground mb-4">Signup Trend</h3>
+                <div className="space-y-3">
+                  {signupSeries.length > 0 ? (
+                    signupSeries.map((item: { date: string; label: string; count: number }) => (
+                      <div key={item.date} className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
+                        <span className="text-sm text-muted-foreground">{item.label}</span>
+                        <span className="font-medium text-foreground">{item.count} signups</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No signup activity available yet.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Admin Dashboard */}
       {user.role === "admin" && (

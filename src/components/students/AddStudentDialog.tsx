@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Plus, Loader2 } from "lucide-react";
+import { SENIOR_SECONDARY_PATHWAYS, isSeniorSecondaryGrade } from "@/lib/schoolCategories";
 
 const studentSchema = z.object({
   admission_number: z.string().min(1, "Admission number is required").max(20),
@@ -40,6 +41,7 @@ const studentSchema = z.object({
   date_of_birth: z.string().min(1, "Date of birth is required"),
   gender: z.enum(["male", "female"], { required_error: "Please select gender" }),
   class_id: z.string().optional(),
+  pathway: z.enum(SENIOR_SECONDARY_PATHWAYS).optional(),
   parent_id: z.string().optional(),
   parent_id_secondary: z.string().optional(),
   medical_notes: z.string().max(500).optional(),
@@ -70,6 +72,7 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
       date_of_birth: "",
       gender: undefined,
       class_id: "",
+      pathway: undefined,
       parent_id: "",
       parent_id_secondary: "",
       medical_notes: "",
@@ -77,6 +80,7 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
   });
   const primaryParentId = form.watch("parent_id");
   const secondaryParentId = form.watch("parent_id_secondary");
+  const selectedClassId = form.watch("class_id");
 
   // Fetch classes for dropdown
   const { data: classes = [] } = useQuery({
@@ -90,6 +94,15 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
       return data;
     },
   });
+  const selectedClass = classes.find((cls) => cls.id === selectedClassId);
+  const requiresPathway = isSeniorSecondaryGrade(selectedClass?.grade);
+
+  useEffect(() => {
+    if (!requiresPathway) {
+      form.setValue("pathway", undefined);
+      form.clearErrors("pathway");
+    }
+  }, [form, requiresPathway]);
 
   // Fetch parents for dropdown
   const { data: parents = [] } = useQuery({
@@ -113,6 +126,7 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
         date_of_birth: data.date_of_birth,
         gender: data.gender,
         class_id: data.class_id || null,
+        pathway: requiresPathway ? data.pathway || null : null,
         parent_id: data.parent_id || null,
         parent_id_secondary: data.parent_id_secondary || null,
         medical_notes: data.medical_notes?.trim() || null,
@@ -131,6 +145,10 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
   });
 
   const onSubmit = (data: StudentFormData) => {
+    if (requiresPathway && !data.pathway) {
+      form.setError("pathway", { message: "Pathway is required for Grade 10 to Grade 12 students" });
+      return;
+    }
     createStudent.mutate(data);
   };
 
@@ -256,6 +274,34 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
                 </FormItem>
               )}
             />
+
+            {requiresPathway && (
+              <FormField
+                control={form.control}
+                name="pathway"
+                rules={{ required: "Pathway is required for Grade 10 to Grade 12 students" }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Pathway *</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select pathway" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {SENIOR_SECONDARY_PATHWAYS.map((pathway) => (
+                          <SelectItem key={pathway} value={pathway}>
+                            {pathway}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
