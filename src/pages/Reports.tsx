@@ -6,6 +6,7 @@ import { useRole } from "@/contexts/RoleContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useSchoolScope } from "@/hooks/useSchoolScope";
 
 type ReportRole = "admin" | "teacher" | "parent" | "bursar";
 
@@ -59,6 +60,9 @@ type RecentReport = {
   format: string;
 };
 
+const isMissingLogoColumnError = (error: { message?: string } | null) =>
+  Boolean(error?.message && error.message.includes("logo_url"));
+
 const formatDate = (value?: string | null) => {
   if (!value) return "N/A";
   const date = new Date(value);
@@ -69,7 +73,12 @@ const formatDate = (value?: string | null) => {
 const downloadPdf = (
   filename: string,
   title: string,
-  rows: Record<string, string | number | null | undefined>[]
+  rows: Record<string, string | number | null | undefined>[],
+  schoolProfile?: {
+    name?: string | null;
+    code?: string | null;
+    logo_url?: string | null;
+  } | null
 ) => {
   if (rows.length === 0) {
     toast.info("No data available for this report yet.");
@@ -100,6 +109,8 @@ const downloadPdf = (
         <style>
           :root { color-scheme: light; }
           body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
+          .header { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+          .logo { width: 72px; height: 72px; object-fit: contain; }
           h1 { font-size: 20px; margin: 0 0 8px; }
           p { margin: 0 0 16px; font-size: 12px; color: #6b7280; }
           table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -109,8 +120,14 @@ const downloadPdf = (
         </style>
       </head>
       <body>
-        <h1>${title}</h1>
-        <p>Generated on ${new Date().toLocaleString("en-KE")}</p>
+        <div class="header">
+          ${schoolProfile?.logo_url ? `<img src="${schoolProfile.logo_url}" alt="School logo" class="logo" />` : ""}
+          <div>
+            <h1>${title}</h1>
+            <p>${schoolProfile?.name || "School Report"}${schoolProfile?.code ? ` • ${schoolProfile.code}` : ""}</p>
+            <p>Generated on ${new Date().toLocaleString("en-KE")}</p>
+          </div>
+        </div>
         <table>
           <thead>
             <tr>${headers.map((header) => `<th>${header.replace(/_/g, " ")}</th>`).join("")}</tr>
@@ -129,7 +146,32 @@ const downloadPdf = (
 
 export default function Reports() {
   const { user, selectedChildId } = useRole();
+  const { schoolId } = useSchoolScope();
   const [generatingId, setGeneratingId] = useState<string | null>(null);
+
+  const { data: schoolProfile } = useQuery({
+    queryKey: ["report-school-profile", schoolId],
+    queryFn: async () => {
+      if (!schoolId) return null;
+
+      const { data, error } = await supabase
+        .from("schools")
+        .select("name, code, logo_url")
+        .eq("id", schoolId)
+        .maybeSingle();
+      if (!error) return data;
+      if (!isMissingLogoColumnError(error)) throw error;
+
+      const fallback = await supabase
+        .from("schools")
+        .select("name, code")
+        .eq("id", schoolId)
+        .maybeSingle();
+      if (fallback.error) throw fallback.error;
+      return fallback.data ? { ...fallback.data, logo_url: null } : null;
+    },
+    enabled: Boolean(schoolId),
+  });
 
   const { data: teacherClasses = [] } = useQuery({
     queryKey: ["teacher-classes-reports", user.id],
@@ -392,7 +434,7 @@ export default function Reports() {
           created_at: formatDate(student.created_at),
         }));
 
-        downloadPdf("enrollment-report.pdf", "Enrollment Report", rows);
+        downloadPdf("enrollment-report.pdf", "Enrollment Report", rows, schoolProfile);
         return;
       }
 
@@ -423,7 +465,7 @@ export default function Reports() {
           status: record.status,
         }));
 
-        downloadPdf("attendance-report.pdf", "Attendance Report", rows);
+        downloadPdf("attendance-report.pdf", "Attendance Report", rows, schoolProfile);
         return;
       }
 
@@ -454,7 +496,7 @@ export default function Reports() {
           payment_date: formatDate(fee.payment_date),
         }));
 
-        downloadPdf("fee-collection-report.pdf", "Fee Collection Report", rows);
+        downloadPdf("fee-collection-report.pdf", "Fee Collection Report", rows, schoolProfile);
         return;
       }
 
@@ -475,7 +517,8 @@ export default function Reports() {
             downloadPdf(
               reportId === "termly" ? "term-report-cards.pdf" : "performance-report.pdf",
               reportId === "termly" ? "Term Report Cards" : "CBC Performance Report",
-              []
+              [],
+              schoolProfile
             );
             return;
           }
@@ -501,7 +544,8 @@ export default function Reports() {
         downloadPdf(
           reportId === "termly" ? "term-report-cards.pdf" : "performance-report.pdf",
           reportId === "termly" ? "Term Report Cards" : "CBC Performance Report",
-          rows
+          rows,
+          schoolProfile
         );
         return;
       }

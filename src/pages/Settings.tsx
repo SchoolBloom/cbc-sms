@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { type ChangeEvent, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -59,6 +59,50 @@ const emptySchoolForm = {
   schoolCategories: ["primary_junior_secondary"] as string[],
 };
 
+const fileToDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Failed to read logo file."));
+    reader.readAsDataURL(file);
+  });
+
+const isMissingLogoColumnError = (error: { message?: string } | null) =>
+  Boolean(error?.message && error.message.includes("logo_url"));
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return fallback;
+};
+
+const fetchSchoolProfileById = async (schoolId: string) => {
+  const baseFields =
+    "id, name, code, county, subcounty, contact_email, contact_phone, administrator_name, administrator_email, administrator_phone, school_categories";
+  const fieldsWithLogo = `${baseFields}, logo_url`;
+
+  const { data, error } = await supabase
+    .from("schools")
+    .select(fieldsWithLogo)
+    .eq("id", schoolId)
+    .maybeSingle();
+
+  if (!error) return data;
+  if (!isMissingLogoColumnError(error)) throw error;
+
+  const fallback = await supabase
+    .from("schools")
+    .select(baseFields)
+    .eq("id", schoolId)
+    .maybeSingle();
+
+  if (fallback.error) throw fallback.error;
+  return fallback.data ? { ...fallback.data, logo_url: null } : null;
+};
+
 export default function Settings() {
   const { user } = useRole();
   const { user: authUser, session } = useAuth();
@@ -71,6 +115,7 @@ export default function Settings() {
   );
   const [isRegisteringSchool, setIsRegisteringSchool] = useState(false);
   const [schoolForm, setSchoolForm] = useState(emptySchoolForm);
+  const [logoUploading, setLogoUploading] = useState(false);
   const [yearForm, setYearForm] = useState({
     id: "",
     label: "",
@@ -146,9 +191,6 @@ export default function Settings() {
   const { data: schoolProfile } = useQuery({
     queryKey: ["school-profile", schoolId, authUser?.id, user.role],
     queryFn: async () => {
-      const selectFields =
-        "name, code, county, subcounty, contact_email, contact_phone, administrator_name, administrator_email, administrator_phone, school_categories";
-
       let resolvedSchoolId = schoolId || null;
 
       if (!resolvedSchoolId && authUser?.id) {
@@ -193,12 +235,7 @@ export default function Settings() {
       }
 
       if (resolvedSchoolId) {
-        const { data, error } = await supabase
-          .from("schools")
-          .select(selectFields)
-          .eq("id", resolvedSchoolId)
-          .maybeSingle();
-        if (error) throw error;
+        const data = await fetchSchoolProfileById(resolvedSchoolId);
         if (data) return data;
       }
 
@@ -206,6 +243,7 @@ export default function Settings() {
     },
     enabled: user.role !== "system_admin" && Boolean(authUser?.id),
   });
+  const editableSchoolId = schoolId || schoolProfile?.id || null;
 
   const systemRoleBreakdown = useMemo(
     () => (systemSummary?.metrics?.roleBreakdown || {}) as Record<string, number>,
@@ -223,6 +261,60 @@ export default function Settings() {
       ...yearForm,
       current_term: Number(yearForm.current_term),
     });
+  };
+
+  const handleSchoolLogoChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file || !editableSchoolId || user.role !== "admin") return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Select an image file for the school logo.");
+      return;
+    }
+    if (file.size > 1024 * 1024) {
+      toast.error("School logo must be 1MB or smaller.");
+      return;
+    }
+
+    try {
+      setLogoUploading(true);
+      const logoUrl = await fileToDataUrl(file);
+      const { error } = await supabase
+        .from("schools")
+        .update({ logo_url: logoUrl })
+        .eq("id", editableSchoolId);
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["school-profile"] });
+      toast.success("School logo updated.");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to update school logo."));
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
+  const handleRemoveSchoolLogo = async () => {
+    if (!editableSchoolId || user.role !== "admin") return;
+
+    try {
+      setLogoUploading(true);
+      const { error } = await supabase
+        .from("schools")
+        .update({ logo_url: null })
+        .eq("id", editableSchoolId);
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["school-profile"] });
+      toast.success("School logo removed.");
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to remove school logo."));
+    } finally {
+      setLogoUploading(false);
+    }
   };
 
   const toggleSchoolCategory = (category: string, checked: boolean) => {
@@ -612,6 +704,48 @@ export default function Settings() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3 md:col-span-2">
+                  <Label>School Logo</Label>
+                  <div className="rounded-xl border border-border/50 p-4">
+                    {schoolProfile?.logo_url ? (
+                      <img
+                        src={schoolProfile.logo_url}
+                        alt={`${schoolProfile.name || "School"} logo`}
+                        className="h-24 w-24 rounded-lg object-contain border border-border/50 bg-muted/30"
+                      />
+                    ) : (
+                      <div className="flex h-24 w-24 items-center justify-center rounded-lg border border-dashed border-border/50 bg-muted/30 text-xs text-muted-foreground">
+                        No logo
+                      </div>
+                    )}
+                    {user.role === "admin" && (
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleSchoolLogoChange}
+                          disabled={logoUploading || !editableSchoolId}
+                          className="max-w-sm"
+                        />
+                        {schoolProfile?.logo_url && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleRemoveSchoolLogo}
+                            disabled={logoUploading || !editableSchoolId}
+                          >
+                            Remove Logo
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    {user.role === "admin" && (
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        Upload a square or landscape logo up to 1MB. It will appear on generated reports for this school.
+                      </p>
+                    )}
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="schoolNameStatic">School Name</Label>
                   <Input id="schoolNameStatic" value={schoolProfile?.name || ""} disabled />
