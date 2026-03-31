@@ -47,6 +47,7 @@ Roles are defined in `RoleContext`:
 - teacher
 - parent
 - bursar
+- librarian
 
 Permission checks are centralized in `RoleContext` and used for page/action gating.
 
@@ -55,6 +56,7 @@ Role permissions overview:
 - teacher: read students/classes, manage attendance + assessments, read parents/notices/reports
 - parent: read students (own), attendance, assessments, fees, notices, reports
 - bursar: manage fees, read students/parents, generate reports
+- librarian: manage library settings/inventory, issue and receive books, track overdue penalties and losses
 
 Parent-specific data:
 - The context resolves parent records, links to children, and keeps a selected child state.
@@ -64,6 +66,7 @@ Routes are defined in `src/App.tsx`:
 - `/login` (public)
 - `/awaiting-allocation` (post-signup holding page)
 - `/` (dashboard, role gated)
+- `/library` (admin, teacher, parent, librarian)
 - `/students` (admin)
 - `/classes` (admin, teacher)
 - `/attendance` (admin, teacher, parent)
@@ -89,6 +92,7 @@ Default route logic:
 - Attendance: daily attendance records.
 - Assessments: CBC learning areas and performance tracking.
 - Fees: invoices and payment status.
+- Library: book inventory, issue tracking, overdue penalties, and lost-book records.
 - Parents: guardian profiles and relationships.
 - Teachers: staff management.
 - Notices: publish announcements to audiences.

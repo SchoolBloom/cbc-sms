@@ -104,7 +104,7 @@ export default function Login() {
 
           <div className="grid grid-cols-2 gap-4 max-w-md">
             {[
-              { label: "CBC-ready", value: "PP1–G9" },
+              { label: "CBC-ready", value: "PP1–G12" },
               { label: "Assessments", value: "Real‑time" },
               { label: "Attendance", value: "Daily" },
               { label: "Reporting", value: "Instant" },

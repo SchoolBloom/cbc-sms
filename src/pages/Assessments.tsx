@@ -6,14 +6,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { FileText, TrendingUp, Star, Eye, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useRole } from "@/contexts/RoleContext";
-import { useAssessments, useCreateAssessment, useStudentAssessments, LEARNING_AREAS, PERFORMANCE_LEVELS } from "@/hooks/useAssessments";
+import { useAssessments, useCreateAssessment, useStudentAssessments, getLearningAreasForCategories, PERFORMANCE_LEVELS } from "@/hooks/useAssessments";
 import { useClasses } from "@/hooks/useClasses";
 import { useStudents } from "@/hooks/useStudents";
 import { useSubjectAssignments } from "@/hooks/useSubjects";
+import { useSchoolScope } from "@/hooks/useSchoolScope";
 
 export default function Assessments() {
   const { user, selectedChildId, setSelectedChildId, hasPermission } = useRole();
   const canWrite = hasPermission("assessments:write");
+  const { categories } = useSchoolScope();
   const [selectedAssessment, setSelectedAssessment] = useState<any | null>(null);
   const [classId, setClassId] = useState("");
   const [studentId, setStudentId] = useState("");
@@ -69,7 +71,7 @@ export default function Assessments() {
 
   const allowedLearningAreas = useMemo(() => {
     if (user.role !== "teacher") {
-      return LEARNING_AREAS;
+      return getLearningAreasForCategories(categories).sort((a, b) => a.localeCompare(b));
     }
 
     const assignedSubjectNames = subjectAssignments
@@ -83,7 +85,7 @@ export default function Assessments() {
     );
 
     return unique.sort((a, b) => a.localeCompare(b));
-  }, [classId, subjectAssignments, user.id, user.role]);
+  }, [categories, classId, subjectAssignments, user.id, user.role]);
 
   const learningAreaPlaceholder =
     user.role === "teacher"

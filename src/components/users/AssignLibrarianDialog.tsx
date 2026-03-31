@@ -24,30 +24,30 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ShieldCheck, Loader2 } from "lucide-react";
+import { BookOpenCheck, Loader2 } from "lucide-react";
 
-const bursarSchema = z.object({
+const librarianSchema = z.object({
   email: z.string().email("Please enter a valid email"),
 });
 
-type BursarFormData = z.infer<typeof bursarSchema>;
+type LibrarianFormData = z.infer<typeof librarianSchema>;
 
-interface AssignBursarDialogProps {
+interface AssignLibrarianDialogProps {
   trigger?: React.ReactNode;
 }
 
-export function AssignBursarDialog({ trigger }: AssignBursarDialogProps) {
+export function AssignLibrarianDialog({ trigger }: AssignLibrarianDialogProps) {
   const [open, setOpen] = useState(false);
   const { data: schoolScope } = useSchoolScope();
   const queryClient = useQueryClient();
 
-  const form = useForm<BursarFormData>({
-    resolver: zodResolver(bursarSchema),
+  const form = useForm<LibrarianFormData>({
+    resolver: zodResolver(librarianSchema),
     defaultValues: { email: "" },
   });
 
-  const assignBursar = useMutation({
-    mutationFn: async (data: BursarFormData) => {
+  const assignLibrarian = useMutation({
+    mutationFn: async (data: LibrarianFormData) => {
       const normalizedEmail = data.email.trim().toLowerCase();
 
       const { data: profile, error: profileError } = await supabase
@@ -58,7 +58,7 @@ export function AssignBursarDialog({ trigger }: AssignBursarDialogProps) {
 
       if (profileError) throw profileError;
       if (!profile) {
-        throw new Error("No user found for that email. Ask the bursar to sign up first.");
+        throw new Error("No user found for that email. Ask the librarian to sign up first.");
       }
 
       const { error: profileUpdateError } = await supabase
@@ -74,7 +74,7 @@ export function AssignBursarDialog({ trigger }: AssignBursarDialogProps) {
         .from("user_roles")
         .select("id")
         .eq("user_id", profile.user_id)
-        .eq("role", "bursar")
+        .eq("role", "librarian")
         .maybeSingle();
 
       if (roleCheckError) throw roleCheckError;
@@ -82,14 +82,14 @@ export function AssignBursarDialog({ trigger }: AssignBursarDialogProps) {
       if (!existingRole) {
         const { error: roleError } = await supabase
           .from("user_roles")
-          .insert({ user_id: profile.user_id, role: "bursar" });
+          .insert({ user_id: profile.user_id, role: "librarian" });
         if (roleError) throw roleError;
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["current-school-scope"] });
       queryClient.invalidateQueries({ queryKey: ["school-profile"] });
-      toast.success("Bursar role assigned");
+      toast.success("Librarian role assigned");
       setOpen(false);
       form.reset();
     },
@@ -98,23 +98,23 @@ export function AssignBursarDialog({ trigger }: AssignBursarDialogProps) {
     },
   });
 
-  const onSubmit = (data: BursarFormData) => {
-    assignBursar.mutate(data);
+  const onSubmit = (data: LibrarianFormData) => {
+    assignLibrarian.mutate(data);
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {trigger || (
-          <Button className="gap-2">
-            <ShieldCheck className="w-4 h-4" />
-            Assign Bursar Role
+          <Button variant="outline" className="gap-2">
+            <BookOpenCheck className="w-4 h-4" />
+            Assign Librarian Role
           </Button>
         )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[420px]">
         <DialogHeader>
-          <DialogTitle>Assign Bursar Role</DialogTitle>
+          <DialogTitle>Assign Librarian Role</DialogTitle>
           <DialogDescription>
             The user must already have an account. Enter their signup email.
           </DialogDescription>
@@ -128,7 +128,7 @@ export function AssignBursarDialog({ trigger }: AssignBursarDialogProps) {
                 <FormItem>
                   <FormLabel>Email *</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="bursar@school.com" {...field} />
+                    <Input type="email" placeholder="librarian@school.com" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -138,8 +138,8 @@ export function AssignBursarDialog({ trigger }: AssignBursarDialogProps) {
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={assignBursar.isPending}>
-                {assignBursar.isPending ? (
+              <Button type="submit" disabled={assignLibrarian.isPending}>
+                {assignLibrarian.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Assigning...

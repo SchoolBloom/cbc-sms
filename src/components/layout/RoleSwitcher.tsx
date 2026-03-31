@@ -1,12 +1,14 @@
 import { useRole, getRoleLabel, UserRole } from "@/contexts/RoleContext";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Shield, BookOpen, Users, Wallet } from "lucide-react";
+import { ChevronDown, Shield, BookOpen, Users, Wallet, Library } from "lucide-react";
 
 const roleIcons: Record<UserRole, typeof Shield> = {
   admin: Shield,
   teacher: BookOpen,
   parent: Users,
   bursar: Wallet,
+  librarian: Library,
+  system_admin: Shield,
 };
 
 export function RoleSwitcher() {

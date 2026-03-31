@@ -183,6 +183,8 @@ export function useAssignParentRole() {
       }
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["current-school-scope"] });
+      queryClient.invalidateQueries({ queryKey: ["school-profile"] });
       queryClient.invalidateQueries({ queryKey: ["parents"] });
       queryClient.invalidateQueries({ queryKey: ["parents-with-children"] });
       toast.success("Parent access granted");

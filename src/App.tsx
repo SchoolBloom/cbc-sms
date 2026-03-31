@@ -18,6 +18,7 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Assignments from "./pages/Assignments";
 import CalendarPage from "./pages/Calendar";
+import LibraryPage from "./pages/Library";
 import Login from "./pages/Login";
 import AwaitingAllocation from "./pages/AwaitingAllocation";
 import NotFound from "./pages/NotFound";
@@ -57,6 +58,7 @@ const roleDefaultRoutes: Record<AppRole, string> = {
   teacher: "/",
   parent: "/",
   bursar: "/",
+  librarian: "/",
   system_admin: "/",
 };
 
@@ -128,6 +130,7 @@ function AppRoutes() {
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/awaiting-allocation" element={<AwaitingAllocation />} />
       <Route path="/" element={<ProtectedRoute><RoleHome /></ProtectedRoute>} />
+      <Route path="/library" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent", "librarian"]}><LibraryPage /></RoleProtectedRoute>} />
       <Route path="/students" element={<RoleProtectedRoute allowedRoles={["admin"]}><Students /></RoleProtectedRoute>} />
       <Route path="/classes" element={<RoleProtectedRoute allowedRoles={["admin", "teacher"]}><Classes /></RoleProtectedRoute>} />
       <Route path="/attendance" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent"]}><Attendance /></RoleProtectedRoute>} />
@@ -140,7 +143,7 @@ function AppRoutes() {
       <Route path="/reports" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent", "bursar"]}><Reports /></RoleProtectedRoute>} />
       <Route path="/assignments" element={<RoleProtectedRoute allowedRoles={["admin"]}><Assignments /></RoleProtectedRoute>} />
       <Route path="/subjects" element={<Navigate to="/assignments" replace />} />
-      <Route path="/settings" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent", "bursar", "system_admin"]}><Settings /></RoleProtectedRoute>} />
+      <Route path="/settings" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent", "bursar", "librarian", "system_admin"]}><Settings /></RoleProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

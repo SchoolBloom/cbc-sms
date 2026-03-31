@@ -47,9 +47,41 @@ export const LEARNING_AREAS_BY_LEVEL = {
     "Physical Education and Sports",
     "Religious Education",
   ],
+  seniorSecondaryCore: [
+    "English",
+    "Kiswahili",
+    "Community Service Learning",
+    "Physical Education",
+  ],
+  seniorSecondaryStem: [
+    "Mathematics",
+    "Biology",
+    "Chemistry",
+    "Physics",
+    "General Science",
+    "Agriculture",
+    "Computer Studies",
+    "Home Science",
+  ],
+  seniorSecondarySocialSciences: [
+    "History and Citizenship",
+    "Geography",
+    "Christian Religious Education",
+    "Islamic Religious Education",
+    "Hindu Religious Education",
+    "Business Studies",
+  ],
+  seniorSecondaryArtsSports: [
+    "Literature in English",
+    "Fasihi ya Kiswahili",
+    "Fine Arts",
+    "Music and Dance",
+    "Theatre and Film",
+    "Sports and Recreation",
+  ],
 };
 
-export const LEARNING_AREAS = Array.from(
+export const PRIMARY_JUNIOR_LEARNING_AREAS = Array.from(
   new Set([
     ...LEARNING_AREAS_BY_LEVEL.prePrimary,
     ...LEARNING_AREAS_BY_LEVEL.lowerPrimary,
@@ -57,6 +89,33 @@ export const LEARNING_AREAS = Array.from(
     ...LEARNING_AREAS_BY_LEVEL.juniorSecondary,
   ])
 );
+
+export const SENIOR_SECONDARY_LEARNING_AREAS = Array.from(
+  new Set([
+    ...LEARNING_AREAS_BY_LEVEL.seniorSecondaryCore,
+    ...LEARNING_AREAS_BY_LEVEL.seniorSecondaryStem,
+    ...LEARNING_AREAS_BY_LEVEL.seniorSecondarySocialSciences,
+    ...LEARNING_AREAS_BY_LEVEL.seniorSecondaryArtsSports,
+  ])
+);
+
+export const LEARNING_AREAS = Array.from(
+  new Set([
+    ...PRIMARY_JUNIOR_LEARNING_AREAS,
+    ...SENIOR_SECONDARY_LEARNING_AREAS,
+  ])
+);
+
+export function getLearningAreasForCategories(categories: string[] | null | undefined) {
+  const normalized = new Set(categories || []);
+  return Array.from(
+    new Set([
+      ...(normalized.has("primary_junior_secondary") ? PRIMARY_JUNIOR_LEARNING_AREAS : []),
+      ...(normalized.has("senior_secondary") ? SENIOR_SECONDARY_LEARNING_AREAS : []),
+      ...(normalized.size === 0 ? PRIMARY_JUNIOR_LEARNING_AREAS : []),
+    ])
+  );
+}
 
 export const PERFORMANCE_LEVELS = [
   { level: "exceeds", code: "EE", name: "Exceeding Expectations", color: "bg-success text-success-foreground" },

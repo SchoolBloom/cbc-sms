@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { AssignBursarDialog } from "@/components/users/AssignBursarDialog";
+import { AssignLibrarianDialog } from "@/components/users/AssignLibrarianDialog";
 import { useAcademicYear, useUpsertAcademicYear } from "@/hooks/useAcademicYear";
 import { useSchoolScope } from "@/hooks/useSchoolScope";
 import { getSchoolCategoryLabel } from "@/lib/schoolCategories";
@@ -148,31 +149,62 @@ export default function Settings() {
       const selectFields =
         "name, code, county, subcounty, contact_email, contact_phone, administrator_name, administrator_email, administrator_phone, school_categories";
 
-      if (schoolId) {
+      let resolvedSchoolId = schoolId || null;
+
+      if (!resolvedSchoolId && authUser?.id) {
+        const [{ data: profile }, { data: adminSchool }, { data: teacher }, { data: parentByUserId }, { data: parentByEmail }] =
+          await Promise.all([
+            supabase
+              .from("profiles")
+              .select("school_id")
+              .eq("user_id", authUser.id)
+              .maybeSingle(),
+            supabase
+              .from("schools")
+              .select("id")
+              .eq("admin_user_id", authUser.id)
+              .maybeSingle(),
+            supabase
+              .from("teachers")
+              .select("school_id")
+              .eq("user_id", authUser.id)
+              .maybeSingle(),
+            supabase
+              .from("parents")
+              .select("school_id")
+              .eq("user_id", authUser.id)
+              .maybeSingle(),
+            authUser.email
+              ? supabase
+                  .from("parents")
+                  .select("school_id")
+                  .ilike("email", authUser.email)
+                  .maybeSingle()
+              : Promise.resolve({ data: null }),
+          ]);
+
+        resolvedSchoolId =
+          profile?.school_id ||
+          adminSchool?.id ||
+          teacher?.school_id ||
+          parentByUserId?.school_id ||
+          parentByEmail?.school_id ||
+          null;
+      }
+
+      if (resolvedSchoolId) {
         const { data, error } = await supabase
           .from("schools")
           .select(selectFields)
-          .eq("id", schoolId)
+          .eq("id", resolvedSchoolId)
           .maybeSingle();
         if (error) throw error;
         if (data) return data;
       }
 
-      if (authUser?.id && (user.role === "admin" || user.role === "teacher" || user.role === "bursar")) {
-        const { data, error } = await supabase
-          .from("schools")
-          .select(selectFields)
-          .or(`admin_user_id.eq.${authUser.id}`)
-          .maybeSingle();
-        if (error) throw error;
-        return data;
-      }
-
       return null;
     },
-    enabled:
-      user.role !== "system_admin" &&
-      Boolean(schoolId || ((user.role === "admin" || user.role === "teacher" || user.role === "bursar") && authUser?.id)),
+    enabled: user.role !== "system_admin" && Boolean(authUser?.id),
   });
 
   const systemRoleBreakdown = useMemo(
@@ -776,7 +808,10 @@ export default function Settings() {
                   <p className="text-sm text-muted-foreground">Assign operational roles and keep the right staff in the right workflows.</p>
                 </div>
               </div>
-              <AssignBursarDialog />
+              <div className="flex flex-wrap gap-3">
+                <AssignBursarDialog />
+                <AssignLibrarianDialog />
+              </div>
             </div>
           )}
 

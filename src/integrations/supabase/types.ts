@@ -302,6 +302,158 @@ export type Database = {
           },
         ]
       }
+      library_books: {
+        Row: {
+          author: string
+          created_at: string
+          id: string
+          isbn: string | null
+          school_id: string
+          title: string
+          total_copies: number
+          updated_at: string
+        }
+        Insert: {
+          author: string
+          created_at?: string
+          id?: string
+          isbn?: string | null
+          school_id?: string
+          title: string
+          total_copies?: number
+          updated_at?: string
+        }
+        Update: {
+          author?: string
+          created_at?: string
+          id?: string
+          isbn?: string | null
+          school_id?: string
+          title?: string
+          total_copies?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_books_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      library_loans: {
+        Row: {
+          book_id: string
+          created_at: string
+          due_date: string
+          id: string
+          issue_source: string
+          issued_at: string
+          issued_by_user_id: string
+          lost_notes: string | null
+          lost_reported_at: string | null
+          return_notes: string | null
+          returned_at: string | null
+          school_id: string
+          status: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          book_id: string
+          created_at?: string
+          due_date: string
+          id?: string
+          issue_source: string
+          issued_at?: string
+          issued_by_user_id: string
+          lost_notes?: string | null
+          lost_reported_at?: string | null
+          return_notes?: string | null
+          returned_at?: string | null
+          school_id?: string
+          status?: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          book_id?: string
+          created_at?: string
+          due_date?: string
+          id?: string
+          issue_source?: string
+          issued_at?: string
+          issued_by_user_id?: string
+          lost_notes?: string | null
+          lost_reported_at?: string | null
+          return_notes?: string | null
+          returned_at?: string | null
+          school_id?: string
+          status?: string
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_loans_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "library_books"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_loans_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "library_loans_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      library_settings: {
+        Row: {
+          created_at: string
+          daily_penalty_amount: number
+          id: string
+          loan_period_days: number
+          school_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          daily_penalty_amount?: number
+          id?: string
+          loan_period_days?: number
+          school_id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          daily_penalty_amount?: number
+          id?: string
+          loan_period_days?: number
+          school_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "library_settings_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notices: {
         Row: {
           content: string
@@ -672,7 +824,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "teacher" | "parent" | "bursar" | "system_admin"
+      app_role: "admin" | "teacher" | "parent" | "bursar" | "librarian" | "system_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -800,7 +952,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "teacher", "parent", "bursar", "system_admin"],
+      app_role: ["admin", "teacher", "parent", "bursar", "librarian", "system_admin"],
     },
   },
 } as const

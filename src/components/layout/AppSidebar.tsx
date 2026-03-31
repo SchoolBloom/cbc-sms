@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   FileText,
   CreditCard,
+  Library,
   Bell,
   Settings,
   LogOut,
@@ -24,11 +25,12 @@ interface NavItem {
   name: string;
   href: string;
   icon: typeof LayoutDashboard;
-  roles: ("admin" | "teacher" | "parent" | "bursar" | "system_admin")[];
+  roles: ("admin" | "teacher" | "parent" | "bursar" | "librarian" | "system_admin")[];
 }
 
 const navigationItems: NavItem[] = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["admin", "teacher", "parent", "bursar", "system_admin"] },
+  { name: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["admin", "teacher", "parent", "bursar", "librarian", "system_admin"] },
+  { name: "Library", href: "/library", icon: Library, roles: ["admin", "teacher", "parent", "librarian"] },
   { name: "Students", href: "/students", icon: Users, roles: ["admin"] },
   { name: "Classes", href: "/classes", icon: GraduationCap, roles: ["admin", "teacher"] },
   { name: "Assignments", href: "/assignments", icon: BookOpenCheck, roles: ["admin"] },
@@ -43,7 +45,7 @@ const navigationItems: NavItem[] = [
 ];
 
 const bottomItems: NavItem[] = [
-  { name: "Settings", href: "/settings", icon: Settings, roles: ["admin", "teacher", "parent", "bursar", "system_admin"] },
+  { name: "Settings", href: "/settings", icon: Settings, roles: ["admin", "teacher", "parent", "bursar", "librarian", "system_admin"] },
 ];
 
 const roleLabels: Record<string, string> = {
@@ -51,6 +53,7 @@ const roleLabels: Record<string, string> = {
   teacher: "Teacher",
   parent: "Parent",
   bursar: "Bursar",
+  librarian: "Librarian",
   system_admin: "System Admin",
 };
 
@@ -59,6 +62,7 @@ const roleColors: Record<string, string> = {
   teacher: "bg-success text-success-foreground",
   parent: "bg-accent text-accent-foreground",
   bursar: "bg-info text-info-foreground",
+  librarian: "bg-secondary text-secondary-foreground",
   system_admin: "bg-warning text-warning-foreground",
 };
 

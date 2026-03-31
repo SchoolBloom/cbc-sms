@@ -410,6 +410,8 @@ export default function Dashboard() {
         return "Stay updated on your child's progress and school activities.";
       case "bursar":
         return "Overview of fee collection and financial status.";
+      case "librarian":
+        return "Track issued books, overdue penalties, and lost-book cases.";
       case "system_admin":
         return "Platform overview across onboarded schools and user signups.";
     }
@@ -1101,6 +1103,48 @@ export default function Dashboard() {
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {user.role === "librarian" && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <StatCard
+              title="Library"
+              value="Active"
+              subtitle="Inventory and issue register enabled"
+              icon={BookOpen}
+            />
+            <StatCard
+              title="Loans"
+              value="Manage"
+              subtitle="Issue and receive books from the Library page"
+              icon={ClipboardCheck}
+              variant="primary"
+            />
+            <StatCard
+              title="Penalties"
+              value="Configured"
+              subtitle="Set due days and daily charges in Library"
+              icon={CreditCard}
+              variant="success"
+            />
+            <StatCard
+              title="Loss Tracking"
+              value="Enabled"
+              subtitle="Teacher-overdue books are treated as lost"
+              icon={Calendar}
+            />
+          </div>
+
+          <div className="bg-card rounded-xl border border-border/50 p-5">
+            <h3 className="font-display font-semibold text-foreground mb-3">Library Workflow</h3>
+            <div className="space-y-3 text-sm text-muted-foreground">
+              <p>Use librarian-issued loans when overdue penalties should accrue after the configured period.</p>
+              <p>Use teacher-issued loans for classroom circulation. Once the due date passes without a return, the loan is treated as lost in the register.</p>
+              <p>Parents can review each student&apos;s library record from the Library page.</p>
             </div>
           </div>
         </>

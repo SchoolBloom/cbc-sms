@@ -29,11 +29,11 @@ import {
   useSubjectAssignments,
   useSubjects,
 } from "@/hooks/useSubjects";
-import { LEARNING_AREAS, LEARNING_AREAS_BY_LEVEL } from "@/hooks/useAssessments";
+import { LEARNING_AREAS_BY_LEVEL, getLearningAreasForCategories } from "@/hooks/useAssessments";
 import { useSchoolScope } from "@/hooks/useSchoolScope";
 
 export default function Assignments() {
-  const { supportsPrimaryJunior, supportsSenior, gradeBandLabel } = useSchoolScope();
+  const { categories, supportsPrimaryJunior, supportsSenior, gradeBandLabel } = useSchoolScope();
   const [selectedSubjectId, setSelectedSubjectId] = useState("");
   const [selectedClassId, setSelectedClassId] = useState("");
   const [selectedTeacherId, setSelectedTeacherId] = useState("");
@@ -59,27 +59,42 @@ export default function Assignments() {
   const createAssignment = useCreateSubjectAssignment();
   const deleteAssignment = useDeleteSubjectAssignment();
 
-  const cbcSubjects = useMemo(() => {
+  const catalogueLearningAreas = useMemo(
+    () => getLearningAreasForCategories(categories),
+    [categories]
+  );
+
+  const catalogueSubjects = useMemo(() => {
     const subjectByName = new Map(subjects.map((subject) => [subject.name, subject]));
-    return LEARNING_AREAS.map((name) => subjectByName.get(name)).filter(
+    return catalogueLearningAreas.map((name) => subjectByName.get(name)).filter(
       (subject): subject is (typeof subjects)[number] => Boolean(subject)
     );
-  }, [subjects]);
+  }, [catalogueLearningAreas, subjects]);
 
-  const learningAreaGroups = supportsPrimaryJunior
-    ? [
+  const learningAreaGroups = [
+    ...(supportsPrimaryJunior
+      ? [
         { title: "Pre-Primary (PP1 & PP2)", items: LEARNING_AREAS_BY_LEVEL.prePrimary },
         { title: "Lower Primary (Grades 1–3)", items: LEARNING_AREAS_BY_LEVEL.lowerPrimary },
         { title: "Upper Primary (Grades 4–6)", items: LEARNING_AREAS_BY_LEVEL.upperPrimary },
         { title: "Junior Secondary (Grades 7–9)", items: LEARNING_AREAS_BY_LEVEL.juniorSecondary },
       ]
-    : [];
+      : []),
+    ...(supportsSenior
+      ? [
+          { title: "Senior Secondary Core", items: LEARNING_AREAS_BY_LEVEL.seniorSecondaryCore },
+          { title: "STEM Pathway", items: LEARNING_AREAS_BY_LEVEL.seniorSecondaryStem },
+          { title: "Social Sciences Pathway", items: LEARNING_AREAS_BY_LEVEL.seniorSecondarySocialSciences },
+          { title: "Arts and Sports Pathway", items: LEARNING_AREAS_BY_LEVEL.seniorSecondaryArtsSports },
+        ]
+      : []),
+  ];
 
   useEffect(() => {
     if (!selectedSubjectId) return;
-    const isValid = cbcSubjects.some((subject) => subject.id === selectedSubjectId);
+    const isValid = catalogueSubjects.some((subject) => subject.id === selectedSubjectId);
     if (!isValid) setSelectedSubjectId("");
-  }, [cbcSubjects, selectedSubjectId]);
+  }, [catalogueSubjects, selectedSubjectId]);
 
   const handleAssign = () => {
     if (!selectedSubjectId || !selectedClassId || !selectedTeacherId) return;
@@ -106,18 +121,13 @@ export default function Assignments() {
         <div className="space-y-6">
           <div className="bg-card rounded-xl border border-border/50 p-5 space-y-4">
             <h2 className="font-display font-semibold text-foreground">Assign Learning Area</h2>
-            {supportsSenior && !supportsPrimaryJunior && (
-              <div className="rounded-lg border border-border/50 bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-                Senior secondary subject groupings are not configured yet. This view is limited to Grade 10 to Grade 12 classes.
-              </div>
-            )}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <Select value={selectedSubjectId} onValueChange={setSelectedSubjectId}>
                 <SelectTrigger>
                   <SelectValue placeholder={subjectsLoading ? "Loading subjects..." : "Select learning area"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {cbcSubjects.map((subject) => (
+                  {catalogueSubjects.map((subject) => (
                     <SelectItem key={subject.id} value={subject.id}>
                       {subject.name}
                     </SelectItem>
@@ -176,9 +186,9 @@ export default function Assignments() {
                 Loading teachers and classes...
               </p>
             )}
-            {!subjectsLoading && cbcSubjects.length === 0 && (
+            {!subjectsLoading && catalogueSubjects.length === 0 && (
               <p className="text-xs text-muted-foreground">
-                No CBC learning areas are available for assignments.
+                No learning areas are available for this school's category catalogue.
               </p>
             )}
           </div>

@@ -3,7 +3,7 @@ import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 
-export type AppRole = "admin" | "teacher" | "parent" | "bursar" | "system_admin";
+export type AppRole = "admin" | "teacher" | "parent" | "bursar" | "librarian" | "system_admin";
 
 interface AuthUser {
   id: string;

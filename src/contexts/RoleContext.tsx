@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 
-export type UserRole = "admin" | "teacher" | "parent" | "bursar" | "system_admin";
+export type UserRole = "admin" | "teacher" | "parent" | "bursar" | "librarian" | "system_admin";
 
 interface RoleUser {
   id: string;
@@ -40,6 +40,7 @@ type Permission =
   | "attendance:read" | "attendance:write"
   | "assessments:read" | "assessments:write" | "assessments:approve"
   | "fees:read" | "fees:write" | "fees:collect"
+  | "library:read" | "library:write" | "library:manage"
   | "parents:read" | "parents:write"
   | "notices:read" | "notices:write" | "notices:publish"
   | "reports:read" | "reports:generate"
@@ -53,6 +54,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "attendance:read", "attendance:write",
     "assessments:read", "assessments:write", "assessments:approve",
     "fees:read", "fees:write", "fees:collect",
+    "library:read", "library:write", "library:manage",
     "parents:read", "parents:write",
     "notices:read", "notices:write", "notices:publish",
     "reports:read", "reports:generate",
@@ -63,6 +65,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "classes:read",
     "attendance:read", "attendance:write",
     "assessments:read", "assessments:write",
+    "library:read", "library:write",
     "parents:read",
     "notices:read",
     "reports:read",
@@ -72,6 +75,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "attendance:read",
     "assessments:read",
     "fees:read",
+    "library:read",
     "notices:read",
     "reports:read",
   ],
@@ -80,6 +84,12 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "fees:read", "fees:write", "fees:collect",
     "parents:read",
     "reports:read", "reports:generate",
+  ],
+  librarian: [
+    "students:read",
+    "library:read", "library:write", "library:manage",
+    "reports:read", "reports:generate",
+    "settings:read",
   ],
   system_admin: [
     "settings:read", "settings:write",
@@ -225,6 +235,7 @@ export function getRoleLabel(role: UserRole): string {
     teacher: "Teacher",
     parent: "Parent/Guardian",
     bursar: "Accounts/Bursar",
+    librarian: "Librarian",
     system_admin: "System Admin",
   };
   return labels[role];
@@ -236,6 +247,7 @@ export function getRoleColor(role: UserRole): string {
     teacher: "bg-info text-info-foreground",
     parent: "bg-success text-success-foreground",
     bursar: "bg-accent text-accent-foreground",
+    librarian: "bg-secondary text-secondary-foreground",
     system_admin: "bg-warning text-warning-foreground",
   };
   return colors[role];

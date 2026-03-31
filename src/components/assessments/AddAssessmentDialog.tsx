@@ -19,9 +19,10 @@ import { Label } from "@/components/ui/label";
 import { Plus } from "lucide-react";
 import { useClasses } from "@/hooks/useClasses";
 import { useStudents } from "@/hooks/useStudents";
-import { useCreateAssessment, LEARNING_AREAS, PERFORMANCE_LEVELS } from "@/hooks/useAssessments";
+import { useCreateAssessment, getLearningAreasForCategories, PERFORMANCE_LEVELS } from "@/hooks/useAssessments";
 import { useRole } from "@/contexts/RoleContext";
 import { useSubjectAssignments } from "@/hooks/useSubjects";
+import { useSchoolScope } from "@/hooks/useSchoolScope";
 
 export function AddAssessmentDialog() {
   const [open, setOpen] = useState(false);
@@ -34,6 +35,7 @@ export function AddAssessmentDialog() {
   const [comments, setComments] = useState("");
 
   const { user } = useRole();
+  const { categories } = useSchoolScope();
   const { data: classes } = useClasses();
   const { data: students } = useStudents();
   const { data: subjectAssignments = [] } = useSubjectAssignments();
@@ -66,7 +68,7 @@ export function AddAssessmentDialog() {
   const filteredStudentsByClass = filteredStudents.filter((s) => s.class_id === classId);
   const allowedLearningAreas = useMemo(() => {
     if (user.role !== "teacher") {
-      return LEARNING_AREAS;
+      return getLearningAreasForCategories(categories).sort((a, b) => a.localeCompare(b));
     }
 
     const assignedSubjectNames = subjectAssignments
@@ -80,7 +82,7 @@ export function AddAssessmentDialog() {
     );
 
     return unique.sort((a, b) => a.localeCompare(b));
-  }, [classId, subjectAssignments, user.id, user.role]);
+  }, [categories, classId, subjectAssignments, user.id, user.role]);
 
   const learningAreaPlaceholder =
     user.role === "teacher"
