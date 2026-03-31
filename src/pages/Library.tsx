@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useRole } from "@/contexts/RoleContext";
 import {
@@ -19,13 +20,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { BookOpen, CircleAlert, Loader2, Package, ShieldAlert, Wallet } from "lucide-react";
+import { BookOpen, Check, ChevronsUpDown, CircleAlert, Loader2, Package, ShieldAlert, Wallet } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type EffectiveLoanStatus = "issued" | "overdue" | "returned" | "lost";
 
@@ -70,10 +84,11 @@ export default function Library() {
   });
   const [issueForm, setIssueForm] = useState({
     bookId: "",
-    studentId: "",
+    admissionNumber: "",
     dueDate: toDateValue(addDays(new Date(), 14)),
     issueSource: user.role === "teacher" ? "teacher" : "librarian",
   });
+  const [bookPickerOpen, setBookPickerOpen] = useState(false);
 
   const canManageInventory = user.role === "admin" || user.role === "librarian";
   const canManageSettings = canManageInventory;
@@ -82,18 +97,21 @@ export default function Library() {
 
   const today = new Date();
 
-  const { data: students = [], isLoading: studentsLoading } = useQuery({
-    queryKey: ["library-students", user.role],
-    enabled: canIssue,
+  const admissionNumberLookup = issueForm.admissionNumber.trim();
+
+  const { data: matchedStudent, isLoading: studentLookupLoading } = useQuery({
+    queryKey: ["library-student-lookup", admissionNumberLookup],
+    enabled: canIssue && admissionNumberLookup.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("students")
-        .select("id, full_name, admission_number")
+        .select("id, full_name, admission_number, classes:class_id (grade, stream)")
         .eq("status", "active")
-        .order("full_name");
+        .ilike("admission_number", admissionNumberLookup)
+        .maybeSingle();
 
       if (error) throw error;
-      return data || [];
+      return data;
     },
   });
   const { data: settings, isLoading: settingsLoading } = useLibrarySettings(user.role !== "parent");
@@ -199,10 +217,15 @@ export default function Library() {
   };
 
   const handleIssueBook = () => {
+    if (!matchedStudent) {
+      toast.error("Enter a valid active student admission number");
+      return;
+    }
+
     issueBook.mutate(
       {
         bookId: issueForm.bookId,
-        studentId: issueForm.studentId,
+        studentId: matchedStudent.id,
         dueDate: issueForm.dueDate,
         issueSource: issueForm.issueSource as "librarian" | "teacher",
         issuedByUserId: user.id,
@@ -211,7 +234,7 @@ export default function Library() {
         onSuccess: () => {
           setIssueForm({
             bookId: "",
-            studentId: "",
+            admissionNumber: "",
             dueDate: toDateValue(addDays(new Date(), settings?.loan_period_days || 14)),
             issueSource: user.role === "teacher" ? "teacher" : "librarian",
           });
@@ -475,36 +498,82 @@ export default function Library() {
                   </SelectContent>
                 </Select>
               )}
-              <Select
-                value={issueForm.bookId}
-                onValueChange={(value) => setIssueForm((prev) => ({ ...prev, bookId: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select book" />
-                </SelectTrigger>
-                <SelectContent>
-                  {bookRows.map((book) => (
-                    <SelectItem key={book.id} value={book.id} disabled={book.availableCopies < 1}>
-                      {book.title} ({book.availableCopies} available)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={issueForm.studentId}
-                onValueChange={(value) => setIssueForm((prev) => ({ ...prev, studentId: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select student" />
-                </SelectTrigger>
-                <SelectContent>
-                  {students.map((student) => (
-                    <SelectItem key={student.id} value={student.id}>
-                      {student.full_name} ({student.admission_number})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={bookPickerOpen} onOpenChange={setBookPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={bookPickerOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {issueForm.bookId
+                      ? (() => {
+                          const selectedBook = bookRows.find((book) => book.id === issueForm.bookId);
+                          return selectedBook
+                            ? `${selectedBook.title} (${selectedBook.availableCopies} available)`
+                            : "Select book";
+                        })()
+                      : "Search book"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search books..." />
+                    <CommandList>
+                      <CommandEmpty>No books found.</CommandEmpty>
+                      {bookRows.map((book) => (
+                        <CommandItem
+                          key={book.id}
+                          value={`${book.title} ${book.author} ${book.isbn || ""}`}
+                          disabled={book.availableCopies < 1}
+                          onSelect={() => {
+                            setIssueForm((prev) => ({ ...prev, bookId: book.id }));
+                            setBookPickerOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              issueForm.bookId === book.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                            <span className="truncate">{book.title}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {book.availableCopies} available
+                            </span>
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              <div className="space-y-2">
+                <Input
+                  placeholder="Enter admission number"
+                  value={issueForm.admissionNumber}
+                  onChange={(e) =>
+                    setIssueForm((prev) => ({ ...prev, admissionNumber: e.target.value.toUpperCase() }))
+                  }
+                />
+                {studentLookupLoading ? (
+                  <p className="text-xs text-muted-foreground">Looking up student...</p>
+                ) : matchedStudent ? (
+                  <div className="rounded-lg border border-border/50 bg-muted/40 px-3 py-2 text-sm">
+                    <p className="font-medium text-foreground">{matchedStudent.full_name}</p>
+                    <p className="text-muted-foreground">
+                      {matchedStudent.admission_number}
+                      {matchedStudent.classes
+                        ? ` • ${matchedStudent.classes.grade} ${matchedStudent.classes.stream}`
+                        : ""}
+                    </p>
+                  </div>
+                ) : admissionNumberLookup ? (
+                  <p className="text-xs text-muted-foreground">No active student found for that admission number.</p>
+                ) : null}
+              </div>
               <Input
                 type="date"
                 value={issueForm.dueDate}
@@ -514,9 +583,10 @@ export default function Library() {
                 onClick={handleIssueBook}
                 disabled={
                   issueBook.isPending ||
-                  studentsLoading ||
                   !issueForm.bookId ||
-                  !issueForm.studentId ||
+                  !admissionNumberLookup ||
+                  studentLookupLoading ||
+                  !matchedStudent ||
                   !issueForm.dueDate
                 }
               >
