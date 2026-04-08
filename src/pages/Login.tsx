@@ -104,7 +104,7 @@ export default function Login() {
 
           <div className="grid grid-cols-2 gap-4 max-w-md">
             {[
-              { label: "CBC-ready", value: "PP1–G12" },
+              { label: "CBC-ready", value: "Primary, JSS, SSS" },
               { label: "Assessments", value: "Real‑time" },
               { label: "Attendance", value: "Daily" },
               { label: "Reporting", value: "Instant" },
@@ -288,7 +288,7 @@ export default function Login() {
             <img
               src="/sirnaet-logo.png"
               alt="Sirnaet logo"
-              className="h-16 w-16 object-contain"
+              className="h-12 w-12 object-contain"
               loading="lazy"
             />
             <p className="mt-1 text-sm font-semibold text-foreground">SIR NAET</p>
