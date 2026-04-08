@@ -86,6 +86,7 @@ export function useSchoolScope() {
 
   return {
     ...schoolQuery,
+    schoolId: schoolQuery.data?.schoolId || null,
     categories,
     allowedGrades,
     gradeBandLabel,

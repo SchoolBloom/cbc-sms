@@ -60,6 +60,11 @@ type RecentReport = {
   format: string;
 };
 
+type TeacherSubjectAssignment = {
+  class_id: string;
+  subjects?: { name?: string | null } | null;
+};
+
 const isMissingLogoColumnError = (error: { message?: string } | null) =>
   Boolean(error?.message && error.message.includes("logo_url"));
 
@@ -109,8 +114,9 @@ const downloadPdf = (
         <style>
           :root { color-scheme: light; }
           body { font-family: Arial, sans-serif; margin: 24px; color: #111827; }
-          .header { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+          .header { display: flex; flex-direction: column; align-items: center; gap: 16px; margin-bottom: 16px; }
           .logo { width: 72px; height: 72px; object-fit: contain; }
+          .text-center { text-align: center; }
           h1 { font-size: 20px; margin: 0 0 8px; }
           p { margin: 0 0 16px; font-size: 12px; color: #6b7280; }
           table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -122,7 +128,7 @@ const downloadPdf = (
       <body>
         <div class="header">
           ${schoolProfile?.logo_url ? `<img src="${schoolProfile.logo_url}" alt="School logo" class="logo" />` : ""}
-          <div>
+          <div class="text-center">
             <h1>${title}</h1>
             <p>${schoolProfile?.name || "School Report"}${schoolProfile?.code ? ` • ${schoolProfile.code}` : ""}</p>
             <p>Generated on ${new Date().toLocaleString("en-KE")}</p>
@@ -191,16 +197,16 @@ export default function Reports() {
 
   const teacherClassIds = teacherClasses.map((cls) => cls.id);
 
-  const { data: teacherSubjectAssignments = [] } = useQuery({
+  const { data: teacherSubjectAssignments = [] } = useQuery<TeacherSubjectAssignment[]>({
     queryKey: ["teacher-subject-assignments-reports", user.id],
     queryFn: async () => {
       if (user.role !== "teacher") return [];
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("subject_assignments")
         .select("class_id, subjects(name)")
         .eq("teacher_id", user.id);
       if (error) throw error;
-      return data || [];
+      return (data || []) as TeacherSubjectAssignment[];
     },
     enabled: user.role === "teacher",
   });
@@ -401,7 +407,7 @@ export default function Reports() {
     },
   });
 
-  const visibleReportTypes = reportTypes.filter((report) => report.roles.includes(user.role));
+  const visibleReportTypes = reportTypes.filter((report) => report.roles.includes(user.role as ReportRole));
 
   const generateReport = async (reportId: string) => {
     try {
