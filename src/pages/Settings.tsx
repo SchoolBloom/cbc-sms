@@ -455,7 +455,7 @@ export default function Settings() {
                     id="schoolCode"
                     value={schoolForm.schoolCode}
                     onChange={(e) => setSchoolForm((prev) => ({ ...prev, schoolCode: e.target.value.toUpperCase() }))}
-                    placeholder="SEC001"
+                    placeholder="12345678"
                   />
                 </div>
               </div>
