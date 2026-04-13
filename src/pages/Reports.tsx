@@ -130,7 +130,6 @@ const downloadPdf = (
           ${schoolProfile?.logo_url ? `<img src="${schoolProfile.logo_url}" alt="School logo" class="logo" />` : ""}
           <div class="text-center">
             <h1>${title}</h1>
-            <p>${schoolProfile?.name || "School Report"}${schoolProfile?.code ? ` • ${schoolProfile.code}` : ""}</p>
             <p>Generated on ${new Date().toLocaleString("en-KE")}</p>
           </div>
         </div>
