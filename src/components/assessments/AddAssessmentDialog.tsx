@@ -7,13 +7,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Plus } from "lucide-react";
@@ -254,22 +248,11 @@ export function AddAssessmentDialog() {
 
           <div className="space-y-2">
             <Label>Strand (Optional)</Label>
-            <Select value={strand} onValueChange={setStrand}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select strand" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Numbers">Numbers</SelectItem>
-                <SelectItem value="Measurement">Measurement</SelectItem>
-                <SelectItem value="Geometry">Geometry</SelectItem>
-                <SelectItem value="Data Handling">Data Handling</SelectItem>
-                <SelectItem value="Algebra">Algebra</SelectItem>
-                <SelectItem value="Listening & Speaking">Listening & Speaking</SelectItem>
-                <SelectItem value="Reading">Reading</SelectItem>
-                <SelectItem value="Writing">Writing</SelectItem>
-                <SelectItem value="Grammar">Grammar</SelectItem>
-              </SelectContent>
-            </Select>
+            <Input
+              value={strand}
+              onChange={(e) => setStrand(e.target.value)}
+              placeholder="Enter strand"
+            />
           </div>
 
           <div className="space-y-2">

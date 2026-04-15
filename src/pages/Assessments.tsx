@@ -364,22 +364,13 @@ export default function Assessments() {
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Strand (Optional)</label>
-              <Select value={strand} onValueChange={setStrand}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select strand" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Numbers">Numbers</SelectItem>
-                  <SelectItem value="Measurement">Measurement</SelectItem>
-                  <SelectItem value="Geometry">Geometry</SelectItem>
-                  <SelectItem value="Data Handling">Data Handling</SelectItem>
-                  <SelectItem value="Algebra">Algebra</SelectItem>
-                  <SelectItem value="Listening & Speaking">Listening & Speaking</SelectItem>
-                  <SelectItem value="Reading">Reading</SelectItem>
-                  <SelectItem value="Writing">Writing</SelectItem>
-                  <SelectItem value="Grammar">Grammar</SelectItem>
-                </SelectContent>
-              </Select>
+              <input
+                type="text"
+                value={strand}
+                onChange={(e) => setStrand(e.target.value)}
+                placeholder="Enter strand"
+                className="w-full rounded-lg border border-border/50 bg-background px-3 py-2 text-sm"
+              />
             </div>
           </div>
 

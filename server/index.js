@@ -351,6 +351,202 @@ app.get("/api/system/summary", async (req, res) => {
   }
 });
 
+app.get("/api/system/librarians-count", async (req, res) => {
+  try {
+    const { user, error: authError } = await getAuthorizedUser(req);
+    if (authError || !user) {
+      return res.status(401).json({ error: authError || "Unauthorized." });
+    }
+
+    const authorized = await isSystemAdmin(user.id);
+    if (!authorized) {
+      return res.status(403).json({ error: "System admin access required." });
+    }
+
+    const { count, error } = await supabase
+      .from("user_roles")
+      .select("id", { count: "exact", head: true })
+      .eq("role", "librarian");
+
+    if (error) throw error;
+
+    return res.json({ count: count || 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err?.message || "Failed to load librarian count." });
+  }
+});
+
+app.get("/api/system/students-count", async (req, res) => {
+  try {
+    const { user, error: authError } = await getAuthorizedUser(req);
+    if (authError || !user) {
+      return res.status(401).json({ error: authError || "Unauthorized." });
+    }
+
+    const authorized = await isSystemAdmin(user.id);
+    if (!authorized) {
+      return res.status(403).json({ error: "System admin access required." });
+    }
+
+    const { count, error } = await supabase
+      .from("students")
+      .select("id", { count: "exact", head: true });
+
+    if (error) throw error;
+
+    return res.json({ count: count || 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err?.message || "Failed to load student count." });
+  }
+});
+
+app.get("/api/system/schools-list", async (req, res) => {
+  try {
+    const { user, error: authError } = await getAuthorizedUser(req);
+    if (authError || !user) {
+      return res.status(401).json({ error: authError || "Unauthorized." });
+    }
+
+    const authorized = await isSystemAdmin(user.id);
+    if (!authorized) {
+      return res.status(403).json({ error: "System admin access required." });
+    }
+
+    const { data: schools, error } = await supabase
+      .from("schools")
+      .select("id, name, code, administrator_name, administrator_email, administrator_phone, admin_user_id, status, created_at")
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    return res.json({ schools: schools || [] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err?.message || "Failed to load schools." });
+  }
+});
+
+app.put("/api/system/schools/:schoolId/admin", async (req, res) => {
+  try {
+    const { user, error: authError } = await getAuthorizedUser(req);
+    if (authError || !user) {
+      return res.status(401).json({ error: authError || "Unauthorized." });
+    }
+
+    const authorized = await isSystemAdmin(user.id);
+    if (!authorized) {
+      return res.status(403).json({ error: "System admin access required." });
+    }
+
+    const { schoolId } = req.params;
+    const { adminName, adminEmail, adminPhone, adminPassword } = req.body || {};
+
+    if (!adminName || !adminEmail) {
+      return res.status(400).json({ error: "Administrator name and email are required." });
+    }
+
+    const normalizedEmail = String(adminEmail).trim().toLowerCase();
+
+    const { data: school, error: schoolError } = await supabase
+      .from("schools")
+      .select("id, admin_user_id, administrator_email")
+      .eq("id", schoolId)
+      .maybeSingle();
+
+    if (schoolError) throw schoolError;
+    if (!school) {
+      return res.status(404).json({ error: "School not found." });
+    }
+
+    const previousAdminEmail = school.administrator_email;
+
+    const { data: existingProfile } = await supabase
+      .from("profiles")
+      .select("user_id")
+      .ilike("email", normalizedEmail)
+      .maybeSingle();
+
+    let newAdminUserId = existingProfile?.user_id;
+
+    if (!newAdminUserId) {
+      if (!adminPassword) {
+        return res.status(400).json({ error: "A password is required when creating a new admin account." });
+      }
+
+      const { data: newUser, error: createUserError } = await supabase.auth.admin.createUser({
+        email: normalizedEmail,
+        password: adminPassword,
+        email_confirm: true,
+        user_metadata: {
+          full_name: adminName,
+        },
+      });
+
+      if (createUserError) throw createUserError;
+      newAdminUserId = newUser.user.id;
+    }
+
+    await supabase
+      .from("profiles")
+      .upsert({
+        user_id: newAdminUserId,
+        full_name: adminName,
+        email: normalizedEmail,
+        phone: adminPhone ? String(adminPhone).trim() : null,
+        school_id: schoolId,
+      }, { onConflict: "user_id" });
+
+    if (school.admin_user_id && school.admin_user_id !== newAdminUserId) {
+      const { error: removeRoleError } = await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", school.admin_user_id)
+        .eq("role", "admin");
+
+      if (removeRoleError) throw removeRoleError;
+    }
+
+    const { data: existingRole } = await supabase
+      .from("user_roles")
+      .select("id")
+      .eq("user_id", newAdminUserId)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    if (!existingRole) {
+      const { error: addRoleError } = await supabase
+        .from("user_roles")
+        .insert({ user_id: newAdminUserId, role: "admin" });
+
+      if (addRoleError) throw addRoleError;
+    }
+
+    const { error: updateSchoolError } = await supabase
+      .from("schools")
+      .update({
+        administrator_name: String(adminName).trim(),
+        administrator_email: normalizedEmail,
+        administrator_phone: adminPhone ? String(adminPhone).trim() : null,
+        admin_user_id: newAdminUserId,
+      })
+      .eq("id", schoolId);
+
+    if (updateSchoolError) throw updateSchoolError;
+
+    return res.json({
+      ok: true,
+      message: "School administrator updated successfully",
+      previousAdminEmail,
+      newAdminEmail: normalizedEmail,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err?.message || "Failed to update administrator." });
+  }
+});
+
 app.post("/api/notices/:id/email", async (req, res) => {
   try {
     if (!SMTP_HOST || !SMTP_FROM) {

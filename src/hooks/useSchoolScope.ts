@@ -67,7 +67,7 @@ export function useSchoolScope() {
 
       const { data: school, error: schoolError } = await supabase
         .from("schools")
-        .select("id, school_categories")
+        .select("id, name, school_categories")
         .eq("id", resolvedSchoolId)
         .maybeSingle();
 
@@ -75,6 +75,7 @@ export function useSchoolScope() {
 
       return {
         schoolId: school?.id || resolvedSchoolId,
+        schoolName: school?.name || null,
         categories: (school?.school_categories || ["primary_junior_secondary"]) as SchoolCategory[],
       };
     },
@@ -87,6 +88,7 @@ export function useSchoolScope() {
   return {
     ...schoolQuery,
     schoolId: schoolQuery.data?.schoolId || null,
+    schoolName: schoolQuery.data?.schoolName || null,
     categories,
     allowedGrades,
     gradeBandLabel,

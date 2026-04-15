@@ -26,12 +26,14 @@ import { useStudentAssessments } from "@/hooks/useAssessments";
 import { useStudentAttendanceHistory } from "@/hooks/useAttendance";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
+import { useSchoolScope } from "@/hooks/useSchoolScope";
 import { cn } from "@/lib/utils";
 
 export default function Dashboard() {
   const { user, selectedChildId, setSelectedChildId } = useRole();
   const { session } = useAuth();
   const { data: academicYear } = useAcademicYear();
+  const { schoolName } = useSchoolScope();
   const selectedChild = user.children?.find((child) => child.id === selectedChildId);
   const childInitials = selectedChild?.full_name
     ? selectedChild.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2)
@@ -388,7 +390,46 @@ export default function Dashboard() {
     `${roleBreakdown.teacher || 0} teachers`,
     `${roleBreakdown.parent || 0} parents`,
     `${roleBreakdown.bursar || 0} bursars`,
+    `${roleBreakdown.librarian || 0} librarians`,
   ].join(" • ");
+
+  const { data: totalLibrarians = 0 } = useQuery({
+    queryKey: ["system-admin-librarians"],
+    queryFn: async () => {
+      if (!session?.access_token) throw new Error("Missing session.");
+      const response = await fetch(`${apiUrl}/api/system/librarians-count`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || "Failed to load librarian count.");
+      }
+      const data = await response.json();
+      return data.count || 0;
+    },
+    enabled: user.role === "system_admin" && Boolean(session?.access_token),
+  });
+
+  const { data: totalStudents = 0 } = useQuery({
+    queryKey: ["system-admin-students"],
+    queryFn: async () => {
+      if (!session?.access_token) throw new Error("Missing session.");
+      const response = await fetch(`${apiUrl}/api/system/students-count`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || "Failed to load student count.");
+      }
+      const data = await response.json();
+      return data.count || 0;
+    },
+    enabled: user.role === "system_admin" && Boolean(session?.access_token),
+  });
 
   // Role-specific greeting
   const getGreeting = () => {
@@ -401,7 +442,9 @@ export default function Dashboard() {
   const getSubtitle = () => {
     switch (user.role) {
       case "admin":
-        return "Here's what's happening at Sanaet Education Centre today.";
+        return schoolName
+          ? `This is what is happening at ${schoolName} today.`
+          : "This is what is happening at your school today.";
       case "teacher":
         return teacherClassLabels.length > 0
           ? `You have classes in ${teacherClassLabels.join(", ")} today.`
@@ -455,6 +498,11 @@ export default function Dashboard() {
                   {apiHealth.ok ? "API responding normally" : "API health check unavailable"}
                 </p>
               </>
+            ) : user.role === "admin" ? (
+              <>
+                <p className="text-sm font-medium text-foreground">{schoolName || "School"}</p>
+                <p className="text-xs text-muted-foreground">{termLabel} • {weekLabel}</p>
+              </>
             ) : (
               <>
                 <p className="text-sm font-medium text-foreground">{termLabel}</p>
@@ -467,7 +515,7 @@ export default function Dashboard() {
 
       {user.role === "system_admin" && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
             <StatCard
               title="Schools"
               value={systemSchools.length}
@@ -475,16 +523,22 @@ export default function Dashboard() {
               icon={Building2}
             />
             <StatCard
-              title="System Signups"
-              value={totalSignups}
-              subtitle="Accounts created across the platform"
-              icon={Users}
+              title="Total Students"
+              value={totalStudents}
+              subtitle="Across all schools"
+              icon={GraduationCap}
               variant="primary"
             />
             <StatCard
-              title="Assigned Roles"
-              value={assignedRoles}
-              subtitle={systemRoleSummary}
+              title="Librarians"
+              value={totalLibrarians}
+              subtitle="Platform-wide"
+              icon={BookOpen}
+            />
+            <StatCard
+              title="System Signups"
+              value={totalSignups}
+              subtitle="Accounts created across the platform"
               icon={Users}
             />
             <StatCard
@@ -581,11 +635,13 @@ export default function Dashboard() {
                     { label: "PP1 to Grade 9 schools", value: schoolsWithBasic },
                     { label: "Grade 10 to 12 schools", value: schoolsWithSenior },
                     { label: "Schools with both", value: schoolsWithBoth },
+                    { label: "Total Students", value: totalStudents },
                     { label: "System admins", value: roleBreakdown.system_admin || 0 },
                     { label: "School admins", value: roleBreakdown.admin || 0 },
                     { label: "Teachers", value: roleBreakdown.teacher || 0 },
                     { label: "Parents", value: roleBreakdown.parent || 0 },
                     { label: "Bursars", value: roleBreakdown.bursar || 0 },
+                    { label: "Librarians", value: totalLibrarians },
                   ].map((item) => (
                     <div key={item.label} className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
                       <span className="text-muted-foreground">{item.label}</span>
@@ -596,19 +652,26 @@ export default function Dashboard() {
               </div>
 
               <div className="bg-card rounded-xl border border-border/50 p-5">
-                <h3 className="font-display font-semibold text-foreground mb-4">Signup Trend</h3>
-                <div className="space-y-3">
-                  {signupSeries.length > 0 ? (
-                    signupSeries.map((item: { date: string; label: string; count: number }) => (
-                      <div key={item.date} className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
-                        <span className="text-sm text-muted-foreground">{item.label}</span>
-                        <span className="font-medium text-foreground">{item.count} signups</span>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No signup activity available yet.</p>
-                  )}
-                </div>
+                <h3 className="font-display font-semibold text-foreground mb-4">Signup Trend (Last 7 Days)</h3>
+                {signupSeries.length > 0 ? (
+                  <div className="flex items-end justify-between gap-2 h-32">
+                    {(() => {
+                      const maxCount = Math.max(...signupSeries.map((s: { count: number }) => s.count), 1);
+                      return signupSeries.map((item: { date: string; label: string; count: number }) => (
+                        <div key={item.date} className="flex flex-col items-center flex-1 gap-1">
+                          <span className="text-xs font-medium text-foreground">{item.count}</span>
+                          <div
+                            className="w-full bg-primary rounded-t transition-all"
+                            style={{ height: `${Math.max((item.count / maxCount) * 80, item.count > 0 ? 8 : 2)}px` }}
+                          />
+                          <span className="text-xs text-muted-foreground">{item.label}</span>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No signup activity available yet.</p>
+                )}
               </div>
             </div>
           </div>

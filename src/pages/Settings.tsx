@@ -12,20 +12,31 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { AssignBursarDialog } from "@/components/users/AssignBursarDialog";
 import { AssignLibrarianDialog } from "@/components/users/AssignLibrarianDialog";
 import { useAcademicYear, useUpsertAcademicYear } from "@/hooks/useAcademicYear";
 import { useSchoolScope } from "@/hooks/useSchoolScope";
 import { getSchoolCategoryLabel } from "@/lib/schoolCategories";
+import { useBursars, useLibrarians, useRemoveBursar, useRemoveLibrarian } from "@/hooks/useSchoolUsers";
 import {
   Bell,
   BookUser,
   Building2,
   Calendar,
+  CreditCard,
   Database,
+  Edit,
   Loader2,
   ServerCog,
   Shield,
+  Trash2,
   Users,
 } from "lucide-react";
 
@@ -40,9 +51,16 @@ const adminSections = [
 
 const schoolProfileSections = [{ name: "School Profile", icon: Building2 }];
 
+const userSecuritySections = [
+  { name: "School Profile", icon: Building2 },
+  { name: "Security", icon: Shield },
+];
+
 const systemAdminSections = [
   { name: "School Onboarding", icon: BookUser },
+  { name: "School Management", icon: Building2 },
   { name: "System Overview", icon: ServerCog },
+  { name: "Security", icon: Shield },
 ];
 
 const emptySchoolForm = {
@@ -386,7 +404,7 @@ export default function Settings() {
       ? systemAdminSections
       : user.role === "admin"
         ? adminSections
-        : schoolProfileSections;
+        : userSecuritySections;
 
   return (
     <DashboardLayout>
@@ -599,6 +617,10 @@ export default function Settings() {
             </div>
           )}
 
+          {user.role === "system_admin" && activeSection === "School Management" && (
+            <SchoolManagementPanel />
+          )}
+
           {user.role === "system_admin" && activeSection === "System Overview" && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -689,6 +711,21 @@ export default function Settings() {
                 </div>
               </div>
             </>
+          )}
+
+          {user.role === "system_admin" && activeSection === "Security" && (
+            <div className="bg-card rounded-xl border border-border/50 p-6 space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Shield className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h2 className="font-display font-semibold text-foreground">Security</h2>
+                  <p className="text-sm text-muted-foreground">Manage your account security settings.</p>
+                </div>
+              </div>
+              <ChangePasswordForm />
+            </div>
           )}
 
           {user.role !== "system_admin" && activeSection === "School Profile" && (
@@ -802,6 +839,21 @@ export default function Settings() {
                   School profile details have not been linked to this account yet. The registered school record should appear here once the account is attached to its school.
                 </div>
               )}
+            </div>
+          )}
+
+          {user.role !== "system_admin" && user.role !== "admin" && activeSection === "Security" && (
+            <div className="bg-card rounded-xl border border-border/50 p-6 space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Shield className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h2 className="font-display font-semibold text-foreground">Security</h2>
+                  <p className="text-sm text-muted-foreground">Manage your account security settings.</p>
+                </div>
+              </div>
+              <ChangePasswordForm />
             </div>
           )}
 
@@ -946,21 +998,472 @@ export default function Settings() {
                 <AssignBursarDialog />
                 <AssignLibrarianDialog />
               </div>
+
+              <SchoolUsersList />
             </div>
           )}
 
           {user.role === "admin" && ["Security", "Notifications", "Backup & Data"].includes(activeSection) && (
-            <div className="bg-card rounded-xl border border-border/50 p-6">
-              <h2 className="font-display font-semibold text-foreground">{activeSection}</h2>
-              <p className="text-sm text-muted-foreground mt-2">
-                {activeSection === "Security" && "Role assignment and session expiry are active. Extend this section if you want password policy or audit logs next."}
-                {activeSection === "Notifications" && "Notice publishing and delivery are already configured through the notices module and server email worker."}
-                {activeSection === "Backup & Data" && "Supabase remains the source of truth for application data. Add export and restore workflows here when you are ready."}
-              </p>
+            <div className="space-y-6">
+              {activeSection === "Security" && (
+                <div className="bg-card rounded-xl border border-border/50 p-6 space-y-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <Shield className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <h2 className="font-display font-semibold text-foreground">Security</h2>
+                      <p className="text-sm text-muted-foreground">Manage your account security settings.</p>
+                    </div>
+                  </div>
+                  <ChangePasswordForm />
+                </div>
+              )}
+              {activeSection === "Notifications" && (
+                <div className="bg-card rounded-xl border border-border/50 p-6">
+                  <h2 className="font-display font-semibold text-foreground">Notifications</h2>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Notice publishing and delivery are already configured through the notices module and server email worker.
+                  </p>
+                </div>
+              )}
+              {activeSection === "Backup & Data" && (
+                <div className="bg-card rounded-xl border border-border/50 p-6">
+                  <h2 className="font-display font-semibold text-foreground">Backup & Data</h2>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Supabase remains the source of truth for application data. Add export and restore workflows here when you are ready.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
     </DashboardLayout>
+  );
+}
+
+function SchoolUsersList() {
+  const { data: bursars = [], isLoading: bursarsLoading } = useBursars();
+  const { data: librarians = [], isLoading: librariansLoading } = useLibrarians();
+  const removeBursar = useRemoveBursar();
+  const removeLibrarian = useRemoveLibrarian();
+
+  const handleRemoveBursar = (userId: string, name: string) => {
+    if (confirm(`Remove ${name} from bursar role?`)) {
+      removeBursar.mutate(userId);
+    }
+  };
+
+  const handleRemoveLibrarian = (userId: string, name: string) => {
+    if (confirm(`Remove ${name} from librarian role?`)) {
+      removeLibrarian.mutate(userId);
+    }
+  };
+
+  if (bursarsLoading && librariansLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-sm font-medium text-foreground flex items-center gap-2 mb-3">
+          <CreditCard className="w-4 h-4 text-muted-foreground" />
+          Bursars ({bursars.length})
+        </h3>
+        {bursars.length > 0 ? (
+          <div className="divide-y divide-border">
+            {bursars.map((bursar) => (
+              <div key={bursar.id} className="flex items-center justify-between py-2">
+                <div>
+                  <p className="font-medium text-foreground">{bursar.full_name || "Unknown"}</p>
+                  <p className="text-sm text-muted-foreground">{bursar.email || "No email"}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleRemoveBursar(bursar.user_id, bursar.full_name || "this user")}
+                  disabled={removeBursar.isPending}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No bursars assigned yet.</p>
+        )}
+      </div>
+
+      <div>
+        <h3 className="text-sm font-medium text-foreground flex items-center gap-2 mb-3">
+          <BookUser className="w-4 h-4 text-muted-foreground" />
+          Librarians ({librarians.length})
+        </h3>
+        {librarians.length > 0 ? (
+          <div className="divide-y divide-border">
+            {librarians.map((librarian) => (
+              <div key={librarian.id} className="flex items-center justify-between py-2">
+                <div>
+                  <p className="font-medium text-foreground">{librarian.full_name || "Unknown"}</p>
+                  <p className="text-sm text-muted-foreground">{librarian.email || "No email"}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleRemoveLibrarian(librarian.user_id, librarian.full_name || "this user")}
+                  disabled={removeLibrarian.isPending}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No librarians assigned yet.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface SchoolData {
+  id: string;
+  name: string;
+  code: string;
+  administrator_name?: string;
+  administrator_email?: string;
+  administrator_phone?: string;
+  admin_user_id?: string;
+}
+
+function SchoolManagementPanel() {
+  const [editingSchool, setEditingSchool] = useState<SchoolData | null>(null);
+  const [editForm, setEditForm] = useState({
+    adminName: "",
+    adminEmail: "",
+    adminPhone: "",
+    adminPassword: "",
+  });
+  const [isUpdating, setIsUpdating] = useState(false);
+  const { session } = useAuth();
+  const queryClient = useQueryClient();
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3001";
+
+  const { data: schoolsData, isLoading } = useQuery({
+    queryKey: ["system-admin-schools"],
+    queryFn: async () => {
+      if (!session?.access_token) throw new Error("Missing session.");
+      const response = await fetch(`${apiUrl}/api/system/schools-list`, {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || "Failed to load schools.");
+      }
+      return response.json();
+    },
+    enabled: Boolean(session?.access_token),
+  });
+
+  const schools: SchoolData[] = schoolsData?.schools || [];
+
+  const openEditDialog = (school: SchoolData) => {
+    setEditingSchool(school);
+    setEditForm({
+      adminName: school.administrator_name || "",
+      adminEmail: school.administrator_email || "",
+      adminPhone: school.administrator_phone || "",
+      adminPassword: "",
+    });
+  };
+
+  const handleUpdateAdmin = async () => {
+    if (!editingSchool || !session?.access_token) return;
+    
+    setIsUpdating(true);
+    try {
+      const response = await fetch(`${apiUrl}/api/system/schools/${editingSchool.id}/admin`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          adminName: editForm.adminName,
+          adminEmail: editForm.adminEmail,
+          adminPhone: editForm.adminPhone,
+          adminPassword: editForm.adminPassword || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update admin");
+      }
+
+      toast.success("School administrator updated successfully");
+      queryClient.invalidateQueries({ queryKey: ["system-admin-schools"] });
+      queryClient.invalidateQueries({ queryKey: ["system-admin-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["school-profile"] });
+      setEditingSchool(null);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update administrator");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="bg-card rounded-xl border border-border/50 p-6 space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Building2 className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <h2 className="font-display font-semibold text-foreground">School Management</h2>
+            <p className="text-sm text-muted-foreground">Manage school administrators. Changing admin will revoke access from the previous admin.</p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : schools.length > 0 ? (
+            schools.map((school) => (
+              <div key={school.id} className="rounded-xl border border-border/50 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="font-medium text-foreground">{school.name}</h3>
+                      <Badge variant="outline">{school.code}</Badge>
+                    </div>
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <p><span className="font-medium text-foreground">Current Admin:</span> {school.administrator_name || "Not set"}</p>
+                      <p><span className="font-medium text-foreground">Email:</span> {school.administrator_email || "Not set"}</p>
+                      <p><span className="font-medium text-foreground">Phone:</span> {school.administrator_phone || "Not set"}</p>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => openEditDialog(school)}>
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit Admin
+                  </Button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">No schools registered yet.</p>
+          )}
+        </div>
+      </div>
+
+      <Dialog open={!!editingSchool} onOpenChange={(open) => !open && setEditingSchool(null)}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Edit School Administrator</DialogTitle>
+            <DialogDescription>
+              Update the administrator for {editingSchool?.name}. 
+              The previous admin will lose access and the new admin will gain access.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="editAdminName">Administrator Name</Label>
+              <Input
+                id="editAdminName"
+                value={editForm.adminName}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, adminName: e.target.value }))}
+                placeholder="Enter full name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editAdminEmail">Administrator Email</Label>
+              <Input
+                id="editAdminEmail"
+                type="email"
+                value={editForm.adminEmail}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, adminEmail: e.target.value }))}
+                placeholder="admin@school.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editAdminPhone">Administrator Phone</Label>
+              <Input
+                id="editAdminPhone"
+                value={editForm.adminPhone}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, adminPhone: e.target.value }))}
+                placeholder="+254 700 000 000"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editAdminPassword">New Password (Optional)</Label>
+              <Input
+                id="editAdminPassword"
+                type="password"
+                value={editForm.adminPassword}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, adminPassword: e.target.value }))}
+                placeholder="Leave blank to keep existing password"
+              />
+              <p className="text-xs text-muted-foreground">
+                Only enter a new password if you want to reset the admin's login credentials.
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setEditingSchool(null)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleUpdateAdmin} 
+              disabled={isUpdating || !editForm.adminName || !editForm.adminEmail}
+            >
+              {isUpdating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                "Update Administrator"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function ChangePasswordForm() {
+  const { user: authUser } = useAuth();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccess(false);
+
+    if (newPassword.length < 6) {
+      setError("New password must be at least 6 characters.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError("New passwords do not match.");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: authUser?.email || "",
+        password: currentPassword,
+      });
+
+      if (signInError) {
+        setError("Current password is incorrect.");
+        setIsLoading(false);
+        return;
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (updateError) {
+        setError(updateError.message || "Failed to update password.");
+        setIsLoading(false);
+        return;
+      }
+
+      setSuccess(true);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      setError(err.message || "An unexpected error occurred.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <h3 className="text-sm font-medium text-foreground">Change Password</h3>
+      
+      <div className="space-y-3">
+        <div className="space-y-2">
+          <Label htmlFor="currentPassword">Current Password</Label>
+          <Input
+            id="currentPassword"
+            type="password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            placeholder="Enter your current password"
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="newPassword">New Password</Label>
+          <Input
+            id="newPassword"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="Enter new password (min 6 characters)"
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="confirmPassword">Confirm New Password</Label>
+          <Input
+            id="confirmPassword"
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="Confirm new password"
+            required
+          />
+        </div>
+      </div>
+
+      {error && (
+        <p className="text-sm text-destructive">{error}</p>
+      )}
+
+      {success && (
+        <p className="text-sm text-success">Password updated successfully!</p>
+      )}
+
+      <Button type="submit" disabled={isLoading}>
+        {isLoading ? (
+          <>
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            Updating...
+          </>
+        ) : (
+          "Update Password"
+        )}
+      </Button>
+    </form>
   );
 }
