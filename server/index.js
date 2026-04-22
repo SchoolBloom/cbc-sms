@@ -85,6 +85,20 @@ async function isSystemAdmin(userId) {
   return Boolean(data);
 }
 
+async function hasAnyRole(userId, roles) {
+  const normalized = Array.isArray(roles) ? roles : [];
+  if (normalized.length === 0) return false;
+
+  const { data, error } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .in("role", normalized);
+
+  if (error) throw error;
+  return (data || []).length > 0;
+}
+
 function formatDayLabel(value) {
   return new Date(value).toLocaleDateString("en-KE", {
     month: "short",
@@ -600,6 +614,448 @@ app.post("/api/notices/:id/email", async (req, res) => {
     res.status(500).json({ error: "Failed to send notice emails." });
   }
 });
+
+// ============ TIMETABLE API ENDPOINTS ============
+
+// Get all timetables for a school (admin/teacher view)
+app.get("/api/timetables", async (req, res) => {
+  try {
+    const { user, error: authError } = await getAuthorizedUser(req);
+    if (authError || !user) {
+      return res.status(401).json({ error: authError || "Unauthorized." });
+    }
+
+    const allowed = await hasAnyRole(user.id, ["admin", "teacher"]);
+    if (!allowed) {
+      return res.status(403).json({ error: "Admin or teacher access required." });
+    }
+
+    const { academic_year, term, grade } = req.query;
+
+    let query = supabase
+      .from("timetables")
+      .select(`
+        *,
+        timetable_slots (
+          id,
+          day_of_week,
+          period_number,
+          subject,
+          teacher_id,
+          room,
+          start_time,
+          end_time,
+          slot_type,
+          label,
+          teachers:teacher_id (full_name)
+        )
+      `)
+      .order("grade")
+      .order("stream");
+
+    if (academic_year) query = query.eq("academic_year", academic_year);
+    if (term) query = query.eq("term", parseInt(term));
+    if (grade) query = query.eq("grade", grade);
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+    return res.json({ timetables: data || [] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err?.message || "Failed to load timetables." });
+  }
+});
+
+// Get teacher's personal timetable
+app.get("/api/timetables/teacher", async (req, res) => {
+  try {
+    const { user, error: authError } = await getAuthorizedUser(req);
+    if (authError || !user) {
+      return res.status(401).json({ error: authError || "Unauthorized." });
+    }
+
+    const allowed = await hasAnyRole(user.id, ["teacher"]);
+    if (!allowed) {
+      return res.status(403).json({ error: "Teacher access required." });
+    }
+
+    // Get teacher record
+    const { data: teacher, error: teacherError } = await supabase
+      .from("teachers")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (teacherError) throw teacherError;
+    if (!teacher) {
+      return res.status(404).json({ error: "Teacher profile not found." });
+    }
+
+    const { academic_year, term } = req.query;
+
+    // Get all timetable slots for this teacher
+    const { data: slots, error: slotsError } = await supabase
+      .from("timetable_slots")
+      .select(`
+        id,
+        day_of_week,
+        period_number,
+        subject,
+        room,
+        start_time,
+        end_time,
+        timetable_id,
+        timetables:timetable_id (
+          grade,
+          stream,
+          academic_year,
+          term
+        )
+      `)
+      .eq("teacher_id", teacher.id)
+      .order("day_of_week")
+      .order("period_number");
+
+    if (slotsError) throw slotsError;
+
+    // Filter by academic_year and term if provided
+    let filteredSlots = slots || [];
+    if (academic_year) {
+      filteredSlots = filteredSlots.filter(s => s.timetables?.academic_year === academic_year);
+    }
+    if (term) {
+      filteredSlots = filteredSlots.filter(s => s.timetables?.term === parseInt(term));
+    }
+
+    return res.json({ slots: filteredSlots });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err?.message || "Failed to load teacher timetable." });
+  }
+});
+
+// Create a new timetable
+app.post("/api/timetables", async (req, res) => {
+  try {
+    const { user, error: authError } = await getAuthorizedUser(req);
+    if (authError || !user) {
+      return res.status(401).json({ error: authError || "Unauthorized." });
+    }
+
+    // Check admin role
+    const { data: role, error: roleError } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    if (roleError) throw roleError;
+    if (!role) {
+      return res.status(403).json({ error: "Admin access required." });
+    }
+
+    const { grade, stream, academic_year, term, slots } = req.body || {};
+
+    if (!grade || !academic_year) {
+      return res.status(400).json({ error: "Grade and academic year are required." });
+    }
+
+    // Create timetable
+    const { data: timetable, error: timetableError } = await supabase
+      .from("timetables")
+      .insert({
+        grade,
+        stream: stream || null,
+        academic_year,
+        term: term || 1,
+        created_by: user.id,
+      })
+      .select()
+      .single();
+
+    if (timetableError) throw timetableError;
+
+    const effectiveTerm = term || 1;
+
+    // Add slots if provided
+    if (slots && slots.length > 0) {
+      const seen = new Set();
+      for (const slot of slots) {
+        const key = `${slot.day_of_week}:${slot.period_number}`;
+        if (seen.has(key)) {
+          return res.status(400).json({ error: `Duplicate slot for day ${slot.day_of_week} period ${slot.period_number}.` });
+        }
+        seen.add(key);
+        const hasStart = Boolean(slot.start_time);
+        const hasEnd = Boolean(slot.end_time);
+        if ((hasStart && !hasEnd) || (!hasStart && hasEnd)) {
+          return res.status(400).json({ error: "Both start_time and end_time must be provided together." });
+        }
+
+        const slotType = slot.slot_type || "lesson";
+        if (slotType !== "lesson" && slotType !== "break") {
+          return res.status(400).json({ error: "slot_type must be 'lesson' or 'break'." });
+        }
+        if (slotType === "break" && slot.teacher_id) {
+          return res.status(400).json({ error: "Break slots cannot have a teacher assigned." });
+        }
+        if (slotType === "break" && !slot.label && !slot.subject) {
+          return res.status(400).json({ error: "Break slots require a label (e.g. Lunch Break)." });
+        }
+      }
+
+      const teacherIds = Array.from(new Set(slots.map((slot) => slot.teacher_id).filter(Boolean)));
+      if (teacherIds.length > 0) {
+        const { data: teacherConflicts, error: teacherConflictsError } = await supabase
+          .from("timetable_slots")
+          .select(`
+            id,
+            teacher_id,
+            day_of_week,
+            period_number,
+            timetables:timetable_id (academic_year, term, grade, stream)
+          `)
+          .in("teacher_id", teacherIds);
+
+        if (teacherConflictsError) throw teacherConflictsError;
+
+        const conflicts = (teacherConflicts || []).filter((existing) => {
+          const t = existing.timetables;
+          if (!t) return false;
+          if (t.academic_year !== academic_year) return false;
+          if (t.term !== effectiveTerm) return false;
+          return slots.some(
+            (incoming) =>
+              incoming.teacher_id &&
+              incoming.teacher_id === existing.teacher_id &&
+              incoming.day_of_week === existing.day_of_week &&
+              incoming.period_number === existing.period_number
+          );
+        });
+
+        if (conflicts.length > 0) {
+          const first = conflicts[0];
+          const t = first.timetables;
+          return res.status(409).json({
+            error: `Teacher conflict: already assigned on day ${first.day_of_week}, period ${first.period_number} (${t.grade}${t.stream ? ` ${t.stream}` : ""}).`,
+          });
+        }
+      }
+
+      const slotsToInsert = slots.map((slot) => ({
+        timetable_id: timetable.id,
+        day_of_week: slot.day_of_week,
+        period_number: slot.period_number,
+        subject: slot.subject || (slot.slot_type === "break" ? "Break" : null),
+        teacher_id: slot.teacher_id || null,
+        room: slot.room || null,
+        start_time: slot.start_time || null,
+        end_time: slot.end_time || null,
+        slot_type: slot.slot_type || "lesson",
+        label: slot.label || null,
+      }));
+
+      const { error: slotsError } = await supabase
+        .from("timetable_slots")
+        .insert(slotsToInsert);
+
+      if (slotsError) throw slotsError;
+    }
+
+    return res.status(201).json({ ok: true, timetable });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err?.message || "Failed to create timetable." });
+  }
+});
+
+// Update timetable slots
+app.put("/api/timetables/:timetableId/slots", async (req, res) => {
+  try {
+    const { user, error: authError } = await getAuthorizedUser(req);
+    if (authError || !user) {
+      return res.status(401).json({ error: authError || "Unauthorized." });
+    }
+
+    // Check admin role
+    const { data: role, error: roleError } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    if (roleError) throw roleError;
+    if (!role) {
+      return res.status(403).json({ error: "Admin access required." });
+    }
+
+    const { timetableId } = req.params;
+    const { slots } = req.body || {};
+
+    if (!slots || !Array.isArray(slots)) {
+      return res.status(400).json({ error: "Slots array is required." });
+    }
+
+    const { data: timetableMeta, error: metaError } = await supabase
+      .from("timetables")
+      .select("id, academic_year, term")
+      .eq("id", timetableId)
+      .maybeSingle();
+
+    if (metaError) throw metaError;
+    if (!timetableMeta) {
+      return res.status(404).json({ error: "Timetable not found." });
+    }
+
+    const seen = new Set();
+    for (const slot of slots) {
+      const key = `${slot.day_of_week}:${slot.period_number}`;
+      if (seen.has(key)) {
+        return res.status(400).json({ error: `Duplicate slot for day ${slot.day_of_week} period ${slot.period_number}.` });
+      }
+      seen.add(key);
+      const hasStart = Boolean(slot.start_time);
+      const hasEnd = Boolean(slot.end_time);
+      if ((hasStart && !hasEnd) || (!hasStart && hasEnd)) {
+        return res.status(400).json({ error: "Both start_time and end_time must be provided together." });
+      }
+
+      const slotType = slot.slot_type || "lesson";
+      if (slotType !== "lesson" && slotType !== "break") {
+        return res.status(400).json({ error: "slot_type must be 'lesson' or 'break'." });
+      }
+      if (slotType === "break" && slot.teacher_id) {
+        return res.status(400).json({ error: "Break slots cannot have a teacher assigned." });
+      }
+      if (slotType === "break" && !slot.label && !slot.subject) {
+        return res.status(400).json({ error: "Break slots require a label (e.g. Lunch Break)." });
+      }
+    }
+
+    const teacherIds = Array.from(new Set(slots.map((slot) => slot.teacher_id).filter(Boolean)));
+    if (teacherIds.length > 0) {
+      const { data: teacherConflicts, error: teacherConflictsError } = await supabase
+        .from("timetable_slots")
+        .select(`
+          id,
+          teacher_id,
+          day_of_week,
+          period_number,
+          timetable_id,
+          timetables:timetable_id (academic_year, term, grade, stream)
+        `)
+        .in("teacher_id", teacherIds);
+
+      if (teacherConflictsError) throw teacherConflictsError;
+
+      const conflicts = (teacherConflicts || []).filter((existing) => {
+        const t = existing.timetables;
+        if (!t) return false;
+        if (existing.timetable_id === timetableId) return false;
+        if (t.academic_year !== timetableMeta.academic_year) return false;
+        if (t.term !== timetableMeta.term) return false;
+        return slots.some(
+          (incoming) =>
+            incoming.teacher_id &&
+            incoming.teacher_id === existing.teacher_id &&
+            incoming.day_of_week === existing.day_of_week &&
+            incoming.period_number === existing.period_number
+        );
+      });
+
+      if (conflicts.length > 0) {
+        const first = conflicts[0];
+        const t = first.timetables;
+        return res.status(409).json({
+          error: `Teacher conflict: already assigned on day ${first.day_of_week}, period ${first.period_number} (${t.grade}${t.stream ? ` ${t.stream}` : ""}).`,
+        });
+      }
+    }
+
+    // Delete existing slots (safe after validation)
+    const { error: deleteError } = await supabase
+      .from("timetable_slots")
+      .delete()
+      .eq("timetable_id", timetableId);
+
+    if (deleteError) throw deleteError;
+
+    // Insert new slots
+    if (slots.length > 0) {
+      const slotsToInsert = slots.map((slot) => ({
+        timetable_id: timetableId,
+        day_of_week: slot.day_of_week,
+        period_number: slot.period_number,
+        subject: slot.subject || (slot.slot_type === "break" ? "Break" : null),
+        teacher_id: slot.teacher_id || null,
+        room: slot.room || null,
+        start_time: slot.start_time || null,
+        end_time: slot.end_time || null,
+        slot_type: slot.slot_type || "lesson",
+        label: slot.label || null,
+      }));
+
+      const { error: insertError } = await supabase
+        .from("timetable_slots")
+        .insert(slotsToInsert);
+
+      if (insertError) throw insertError;
+    }
+
+    // Update timetable timestamp
+    await supabase
+      .from("timetables")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", timetableId);
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err?.message || "Failed to update timetable slots." });
+  }
+});
+
+// Delete a timetable
+app.delete("/api/timetables/:timetableId", async (req, res) => {
+  try {
+    const { user, error: authError } = await getAuthorizedUser(req);
+    if (authError || !user) {
+      return res.status(401).json({ error: authError || "Unauthorized." });
+    }
+
+    // Check admin role
+    const { data: role, error: roleError } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    if (roleError) throw roleError;
+    if (!role) {
+      return res.status(403).json({ error: "Admin access required." });
+    }
+
+    const { timetableId } = req.params;
+
+    const { error } = await supabase
+      .from("timetables")
+      .delete()
+      .eq("id", timetableId);
+
+    if (error) throw error;
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err?.message || "Failed to delete timetable." });
+  }
+});
+
+// ============ END TIMETABLE API ENDPOINTS ============
 
 const port = SERVER_PORT ? Number(SERVER_PORT) : 3001;
 app.listen(port, () => {

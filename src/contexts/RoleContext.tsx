@@ -45,7 +45,8 @@ type Permission =
   | "notices:read" | "notices:write" | "notices:publish"
   | "reports:read" | "reports:generate"
   | "settings:read" | "settings:write"
-  | "system:read" | "system:write";
+  | "system:read" | "system:write"
+  | "timetables:read" | "timetables:write";
 
 const rolePermissions: Record<UserRole, Permission[]> = {
   admin: [
@@ -59,6 +60,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "notices:read", "notices:write", "notices:publish",
     "reports:read", "reports:generate",
     "settings:read", "settings:write",
+    "timetables:read", "timetables:write",
   ],
   teacher: [
     "students:read",
@@ -69,6 +71,7 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "parents:read",
     "notices:read",
     "reports:read",
+    "timetables:read",
   ],
   parent: [
     "students:read",

@@ -16,6 +16,7 @@ import {
   UserRound,
   Calendar,
   Network,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -42,6 +43,7 @@ const navigationItems: NavItem[] = [
   { name: "Teachers", href: "/teachers", icon: UserRound, roles: ["admin"] },
   { name: "Notices", href: "/notices", icon: Bell, roles: ["admin", "teacher", "parent"] },
   { name: "Calendar", href: "/calendar", icon: Calendar, roles: ["admin", "teacher", "parent", "bursar"] },
+  { name: "Timetable", href: "/timetable", icon: Clock, roles: ["admin", "teacher"] },
 ];
 
 const bottomItems: NavItem[] = [

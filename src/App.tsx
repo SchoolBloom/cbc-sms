@@ -22,6 +22,7 @@ import LibraryPage from "./pages/Library";
 import Login from "./pages/Login";
 import AwaitingAllocation from "./pages/AwaitingAllocation";
 import NotFound from "./pages/NotFound";
+import Timetable from "./pages/Timetable";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient({
@@ -142,6 +143,7 @@ function AppRoutes() {
       <Route path="/calendar" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent", "bursar"]}><CalendarPage /></RoleProtectedRoute>} />
       <Route path="/reports" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent", "bursar"]}><Reports /></RoleProtectedRoute>} />
       <Route path="/assignments" element={<RoleProtectedRoute allowedRoles={["admin"]}><Assignments /></RoleProtectedRoute>} />
+      <Route path="/timetable" element={<RoleProtectedRoute allowedRoles={["admin", "teacher"]}><Timetable /></RoleProtectedRoute>} />
       <Route path="/subjects" element={<Navigate to="/assignments" replace />} />
       <Route path="/settings" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent", "bursar", "librarian", "system_admin"]}><Settings /></RoleProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
