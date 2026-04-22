@@ -50,8 +50,15 @@ function downloadBlob(filename: string, content: BlobPart, mimeType: string) {
 
 function escapeCsv(value: unknown) {
   const text = value === null || value === undefined ? "" : String(value);
-  const escaped = text.replaceAll('"', '""');
+  const escaped = text.replace(/"/g, '""');
   return /[",\n]/.test(escaped) ? `"${escaped}"` : escaped;
+}
+
+function slugifyFilename(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-zA-Z0-9-_]/g, "");
 }
 
 async function ensurePdfDeps() {
@@ -1114,7 +1121,7 @@ export default function Timetable() {
                     ];
                     const csv = rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
                     downloadBlob(
-                      `teacher-timetable-${teacherName.replaceAll(" ", "-")}-${academicYear}-term${selectedTerm}.csv`,
+                      `teacher-timetable-${slugifyFilename(teacherName)}-${academicYear}-term${selectedTerm}.csv`,
                       csv,
                       "text/csv;charset=utf-8"
                     );
@@ -1143,7 +1150,7 @@ export default function Timetable() {
                         classLabel: `${s.timetables.grade}${s.timetables.stream ? ` ${s.timetables.stream}` : ""}`,
                         room: s.room,
                       })),
-                      filename: `teacher-timetable-${teacherName.replaceAll(" ", "-")}-${academicYear}-term${selectedTerm}.pdf`,
+                      filename: `teacher-timetable-${slugifyFilename(teacherName)}-${academicYear}-term${selectedTerm}.pdf`,
                     });
                   }}
                 >
