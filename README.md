@@ -14,6 +14,7 @@ School Bloom is a CBC-aligned school management system designed for Kenyan prima
 - Fees, invoicing, and payment status
 - Notices and school-wide announcements
 - Calendar for events and key dates
+- Timetable creation for classes and teachers
 
 ## Roles and access
 
@@ -23,6 +24,7 @@ Role-based access controls tailor what each user sees and can manage:
 - Teacher
 - Parent
 - Bursar
+- Librarian
 
 ## Tech stack
 
