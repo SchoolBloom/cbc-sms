@@ -31,12 +31,15 @@ import {
 } from "@/hooks/useSubjects";
 import { LEARNING_AREAS_BY_LEVEL, getLearningAreasForCategories } from "@/hooks/useAssessments";
 import { useSchoolScope } from "@/hooks/useSchoolScope";
+import { filterSubjectsByPathway, getSubjectsForPathway, validateSubjectPathway } from "@/lib/pathwaySubjects";
+import { toast } from "sonner";
 
 export default function Assignments() {
   const { categories, supportsPrimaryJunior, supportsSenior, gradeBandLabel } = useSchoolScope();
   const [selectedSubjectId, setSelectedSubjectId] = useState("");
   const [selectedClassId, setSelectedClassId] = useState("");
   const [selectedTeacherId, setSelectedTeacherId] = useState("");
+  const [pathwayWarning, setPathwayWarning] = useState<string | null>(null);
 
   const { data: subjects = [], isLoading: subjectsLoading } = useSubjects();
   const { data: assignments = [], isLoading: assignmentsLoading } = useSubjectAssignments();
@@ -71,6 +74,59 @@ export default function Assignments() {
     );
   }, [catalogueLearningAreas, subjects]);
 
+  // Get the selected class's grade to check for pathway filtering
+  const selectedClass = useMemo(() => {
+    return classes.find((cls) => cls.id === selectedClassId);
+  }, [classes, selectedClassId]);
+
+  // Get students in the selected class to check their pathway
+  const { data: classStudents = [] } = useQuery({
+    queryKey: ["class-students-pathway", selectedClassId],
+    queryFn: async () => {
+      if (!selectedClassId) return [];
+      const { data, error } = await supabase
+        .from("students")
+        .select("id, senior_pathway")
+        .eq("class_id", selectedClassId)
+        .not("senior_pathway", "is", null);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: Boolean(selectedClassId),
+  });
+
+  // Determine the pathway for the selected class (majority pathway)
+  const classPathway = useMemo(() => {
+    if (classStudents.length === 0) return null;
+    const pathwayCounts = classStudents.reduce((acc, student) => {
+      if (student.senior_pathway) {
+        acc[student.senior_pathway] = (acc[student.senior_pathway] || 0) + 1;
+      }
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const dominantPathway = Object.entries(pathwayCounts).sort((a, b) => b[1] - a[1])[0];
+    return dominantPathway ? dominantPathway[0] : null;
+  }, [classStudents]);
+
+  // Filter subjects based on pathway for senior secondary classes
+  const filteredCatalogueSubjects = useMemo(() => {
+    if (!classPathway) return catalogueSubjects;
+    return filterSubjectsByPathway(catalogueSubjects, classPathway);
+  }, [catalogueSubjects, classPathway]);
+
+  // Show warning when subjects are filtered by pathway
+  useEffect(() => {
+    if (classPathway && filteredCatalogueSubjects.length < catalogueSubjects.length) {
+      const availableSubjects = getSubjectsForPathway(classPathway);
+      setPathwayWarning(
+        `Showing only ${classPathway} pathway subjects for this class. ${catalogueSubjects.length - filteredCatalogueSubjects.length} subjects hidden.`
+      );
+    } else {
+      setPathwayWarning(null);
+    }
+  }, [classPathway, filteredCatalogueSubjects, catalogueSubjects]);
+
   const learningAreaGroups = [
     ...(supportsPrimaryJunior
       ? [
@@ -98,6 +154,20 @@ export default function Assignments() {
 
   const handleAssign = () => {
     if (!selectedSubjectId || !selectedClassId || !selectedTeacherId) return;
+    
+    // Get the subject name
+    const selectedSubject = subjects.find((s) => s.id === selectedSubjectId);
+    if (!selectedSubject) return;
+
+    // Validate pathway if class has senior secondary students
+    if (classPathway) {
+      const validation = validateSubjectPathway(selectedSubject.name, classPathway, selectedClass?.grade);
+      if (!validation.valid) {
+        toast.error(validation.message);
+        return;
+      }
+    }
+
     createAssignment.mutate({
       subjectId: selectedSubjectId,
       classId: selectedClassId,
@@ -117,6 +187,13 @@ export default function Assignments() {
         </div>
       </div>
 
+      {/* Pathway filtering warning */}
+      {pathwayWarning && (
+        <div className="bg-warning/10 border border-warning/50 rounded-lg p-3 mb-4">
+          <p className="text-sm text-warning-foreground">{pathwayWarning}</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-6">
           <div className="bg-card rounded-xl border border-border/50 p-5 space-y-4">
@@ -127,7 +204,7 @@ export default function Assignments() {
                   <SelectValue placeholder={subjectsLoading ? "Loading subjects..." : "Select learning area"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {catalogueSubjects.map((subject) => (
+                  {filteredCatalogueSubjects.map((subject) => (
                     <SelectItem key={subject.id} value={subject.id}>
                       {subject.name}
                     </SelectItem>

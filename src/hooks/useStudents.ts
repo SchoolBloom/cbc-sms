@@ -6,6 +6,8 @@ export interface Student {
   id: string;
   admission_number: string;
   assessment_number?: string | null;
+  birth_certificate_number?: string | null;
+  upi_number?: string | null;
   full_name: string;
   date_of_birth: string;
   gender: string;
@@ -13,6 +15,8 @@ export interface Student {
   parent_id: string | null;
   parent_id_secondary: string | null;
   pathway: string | null;
+  senior_pathway?: string | null;
+  previous_school?: string | null;
   medical_notes: string | null;
   status: string;
   photo_url: string | null;

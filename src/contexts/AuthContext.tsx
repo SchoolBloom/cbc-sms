@@ -10,6 +10,7 @@ interface AuthUser {
   email: string;
   fullName: string;
   role: AppRole | null;
+  roles: AppRole[];
 }
 
 interface AuthContextType {
@@ -29,15 +30,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const fetchUserRole = async (userId: string): Promise<AppRole | null> => {
+  const fetchUserRoles = async (userId: string): Promise<AppRole[]> => {
     const { data, error } = await supabase
       .from("user_roles")
       .select("role")
-      .eq("user_id", userId)
-      .maybeSingle();
-    
-    if (error || !data) return null;
-    return data.role as AppRole;
+      .eq("user_id", userId);
+
+    if (error || !data) return [];
+
+    const normalizedRoles = (data || [])
+      .map((row) => String(row.role || "").trim().toLowerCase())
+      .filter((role): role is AppRole =>
+        ["admin", "teacher", "parent", "bursar", "librarian", "system_admin"].includes(role as AppRole)
+      );
+
+    return Array.from(new Set(normalizedRoles));
+  };
+
+  const resolvePrimaryRole = (roles: AppRole[]): AppRole | null => {
+    if (roles.includes("system_admin")) return "system_admin";
+    if (roles.includes("admin")) return "admin";
+    if (roles.includes("teacher")) return "teacher";
+    if (roles.includes("parent")) return "parent";
+    if (roles.includes("bursar")) return "bursar";
+    if (roles.includes("librarian")) return "librarian";
+    return null;
   };
 
   const fetchUserProfile = async (userId: string, email: string): Promise<AuthUser | null> => {
@@ -47,13 +64,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq("user_id", userId)
       .maybeSingle();
 
-    const role = await fetchUserRole(userId);
+    let roles = await fetchUserRoles(userId);
+    
+    // Admins are also treated as teachers of their school
+    if (roles.includes("admin") && !roles.includes("teacher")) {
+      roles = [...roles, "teacher"];
+    }
+    
+    const role = resolvePrimaryRole(roles);
 
     return {
       id: userId,
       email,
       fullName: profile?.full_name || email,
       role,
+      roles,
     };
   };
 

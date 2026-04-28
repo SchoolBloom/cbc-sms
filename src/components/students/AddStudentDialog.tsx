@@ -37,11 +37,15 @@ import { SENIOR_SECONDARY_PATHWAYS, isSeniorSecondaryGrade } from "@/lib/schoolC
 const studentSchema = z.object({
   admission_number: z.string().min(1, "Admission number is required").max(20),
   assessment_number: z.string().max(30).optional(),
+  birth_certificate_number: z.string().max(50).optional(),
+  upi_number: z.string().max(50).optional(),
   full_name: z.string().min(2, "Name must be at least 2 characters").max(100),
   date_of_birth: z.string().min(1, "Date of birth is required"),
   gender: z.enum(["male", "female"], { required_error: "Please select gender" }),
   class_id: z.string().optional(),
   pathway: z.enum(SENIOR_SECONDARY_PATHWAYS).optional(),
+  senior_pathway: z.enum(SENIOR_SECONDARY_PATHWAYS).optional(),
+  previous_school: z.string().max(255).optional(),
   parent_id: z.string().optional(),
   parent_id_secondary: z.string().optional(),
   medical_notes: z.string().max(500).optional(),
@@ -68,11 +72,15 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
     defaultValues: {
       admission_number: "",
       assessment_number: "",
+      birth_certificate_number: "",
+      upi_number: "",
       full_name: "",
       date_of_birth: "",
       gender: undefined,
       class_id: "",
       pathway: undefined,
+      senior_pathway: undefined,
+      previous_school: "",
       parent_id: "",
       parent_id_secondary: "",
       medical_notes: "",
@@ -122,11 +130,15 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
       const { error } = await supabase.from("students").insert({
         admission_number: data.admission_number.trim(),
         assessment_number: data.assessment_number?.trim() || null,
+        birth_certificate_number: data.birth_certificate_number?.trim() || null,
+        upi_number: data.upi_number?.trim() || null,
         full_name: data.full_name.trim(),
         date_of_birth: data.date_of_birth,
         gender: data.gender,
         class_id: data.class_id || null,
         pathway: requiresPathway ? data.pathway || null : null,
+        senior_pathway: requiresPathway ? data.senior_pathway || null : null,
+        previous_school: data.previous_school?.trim() || null,
         parent_id: data.parent_id || null,
         parent_id_secondary: data.parent_id_secondary || null,
         medical_notes: data.medical_notes?.trim() || null,
@@ -270,6 +282,49 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="birth_certificate_number"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Birth Certificate No.</FormLabel>
+                    <FormControl>
+                      <Input placeholder="BCN-2025-001" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="upi_number"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>UPI Number</FormLabel>
+                    <FormControl>
+                      <Input placeholder="NEMIS UPI" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name="previous_school"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Previous School</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Transfer from..." {...field} />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

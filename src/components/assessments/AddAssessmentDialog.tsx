@@ -27,6 +27,8 @@ export function AddAssessmentDialog() {
   const [assessmentType, setAssessmentType] = useState("");
   const [strand, setStrand] = useState("");
   const [comments, setComments] = useState("");
+  const [coreCompetencyNotes, setCoreCompetencyNotes] = useState("");
+  const [valuesNotes, setValuesNotes] = useState("");
 
   const { user } = useRole();
   const { categories } = useSchoolScope();
@@ -121,6 +123,8 @@ export function AddAssessmentDialog() {
         assessment_type: assessmentType,
         strand: strand || null,
         comments: comments || null,
+        core_competency_notes: coreCompetencyNotes || null,
+        values_notes: valuesNotes || null,
         academic_year: currentYear,
         term: currentTerm,
         assessed_by: user.id,
@@ -142,6 +146,8 @@ export function AddAssessmentDialog() {
     setAssessmentType("");
     setStrand("");
     setComments("");
+    setCoreCompetencyNotes("");
+    setValuesNotes("");
   };
 
   return (
@@ -262,6 +268,26 @@ export function AddAssessmentDialog() {
               onChange={(e) => setComments(e.target.value)}
               placeholder="Teacher's comments on student performance..."
               rows={3}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Core Competency Notes</Label>
+            <Textarea
+              value={coreCompetencyNotes}
+              onChange={(e) => setCoreCompetencyNotes(e.target.value)}
+              placeholder="Notes on core competencies (Communication, Critical Thinking, etc.)..."
+              rows={2}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Values Notes</Label>
+            <Textarea
+              value={valuesNotes}
+              onChange={(e) => setValuesNotes(e.target.value)}
+              placeholder="Notes on CBC values (Respect, Responsibility, etc.)..."
+              rows={2}
             />
           </div>
 

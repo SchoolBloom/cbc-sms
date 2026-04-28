@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
-import { FileText, Download, Users, CreditCard, ClipboardCheck, TrendingUp } from "lucide-react";
+import { FileText, Download, Users, CreditCard, ClipboardCheck, TrendingUp, Upload } from "lucide-react";
+import { DataIngestionDropzone } from "@/components/ui/DataIngestionDropzone";
 import { useRole } from "@/contexts/RoleContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -615,6 +616,17 @@ export default function Reports() {
           </div>
         ))}
       </div>
+
+      {/* Historical Data Ingestion - Admin Only */}
+      {user.role === "admin" && (
+        <div className="mb-8">
+          <DataIngestionDropzone
+            onSuccess={(count) => {
+              toast.success(`Successfully imported ${count} historical assessments`);
+            }}
+          />
+        </div>
+      )}
 
       {/* Recent Reports */}
       <div className="bg-card rounded-xl border border-border/50 overflow-hidden">

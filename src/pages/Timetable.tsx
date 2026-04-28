@@ -128,6 +128,71 @@ async function downloadClassTimetablePdf(timetable: Timetable) {
   doc.save(`timetable-${timetable.grade}-${timetable.stream || "all"}-${timetable.academic_year}-term${timetable.term}.pdf`);
 }
 
+async function downloadAllClassTimetablesPdf(timetables: Timetable[], academicYear: string, term: string) {
+  const { jsPDF, autoTable } = await ensurePdfDeps();
+
+  for (const timetable of timetables) {
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+
+    const title = `Class Timetable`;
+    const subtitle = `${timetable.grade}${timetable.stream ? ` - ${timetable.stream}` : ""} • ${timetable.academic_year} Term ${timetable.term}`;
+
+    doc.setFontSize(16);
+    doc.text(title, 40, 48);
+    doc.setFontSize(11);
+    doc.text(subtitle, 40, 68);
+
+    const slots = (timetable.timetable_slots || []).slice().sort((a, b) => {
+      if (a.day_of_week !== b.day_of_week) return a.day_of_week - b.day_of_week;
+      return a.period_number - b.period_number;
+    });
+
+    const body = slots.map((s) => [
+      getDayName(s.day_of_week),
+      `Period ${s.period_number}`,
+      formatTimeRange(s.start_time, s.end_time),
+      s.slot_type === "break" ? (s.label || "Break") : s.subject,
+      s.slot_type === "break" ? "" : (s.teachers?.full_name || ""),
+      s.slot_type === "break" ? "" : (s.room || ""),
+    ]);
+
+    autoTable(doc, {
+      startY: 86,
+      head: [["Day", "Period", "Time", "Subject / Break", "Teacher", "Room"]],
+      body,
+      styles: { fontSize: 9, cellPadding: 4, overflow: "linebreak" },
+      headStyles: { fillColor: [17, 24, 39] },
+      columnStyles: {
+        0: { cellWidth: 80 },
+        1: { cellWidth: 72 },
+        2: { cellWidth: 70 },
+        3: { cellWidth: 150 },
+        4: { cellWidth: 110 },
+        5: { cellWidth: 60 },
+      },
+      didParseCell: (data: any) => {
+        const row = data.row?.raw;
+        // Shade break rows lightly by checking Subject/Break column text.
+        if (data.section === "body" && Array.isArray(row)) {
+          const subject = row[3];
+          if (typeof subject === "string" && subject.toLowerCase().includes("break")) {
+            data.cell.styles.fillColor = [249, 250, 251];
+          }
+        }
+      },
+    });
+
+    // Save each PDF with a unique filename
+    const filename = `timetable-${timetable.grade}-${timetable.stream || "all"}-${timetable.academic_year}-term${timetable.term}.pdf`;
+    doc.save(filename);
+
+    // Add a small delay between downloads to avoid browser blocking
+    if (timetables.indexOf(timetable) < timetables.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+  }
+}
+
 async function downloadTeacherSchedulePdf(params: {
   teacherName: string;
   academicYear: string;
@@ -358,8 +423,10 @@ function CreateTimetableDialog({ onSuccess }: { onSuccess?: () => void }) {
                         if (next === "break") {
                           updateSlot(index, "teacher_id", undefined);
                           updateSlot(index, "room", undefined);
-                          if (!slot.label) updateSlot(index, "label", "Break");
-                          if (!slot.subject) updateSlot(index, "subject", "Break");
+                          if (!slot.label) updateSlot(index, "label", "Short Break");
+                          updateSlot(index, "subject", undefined);
+                        } else {
+                          updateSlot(index, "label", undefined);
                         }
                       }}
                     >
@@ -384,40 +451,51 @@ function CreateTimetableDialog({ onSuccess }: { onSuccess?: () => void }) {
                         ))}
                       </SelectContent>
                     </Select>
-                    <Select 
-                      value={slot.period_number.toString()} 
-                      onValueChange={(v) => updateSlot(index, 'period_number', parseInt(v))}
-                    >
-                      <SelectTrigger className="w-[100px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PERIODS.map(p => (
-                          <SelectItem key={p} value={p.toString()}>Period {p}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select 
-                      value={slot.subject || ""} 
-                      onValueChange={(v) => updateSlot(index, 'subject', v)}
-                    >
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Subject" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {subjectOptions.map(s => (
-                          <SelectItem key={s} value={s}>{s}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {slot.slot_type === "break" ? (
-                      <Input
-                        placeholder="Break label (e.g. Lunch)"
+                    {slot.slot_type === "lesson" && (
+                      <Select 
+                        value={slot.period_number.toString()} 
+                        onValueChange={(v) => updateSlot(index, 'period_number', parseInt(v))}
+                      >
+                        <SelectTrigger className="w-[100px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PERIODS.map(p => (
+                            <SelectItem key={p} value={p.toString()}>Period {p}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {slot.slot_type === "lesson" ? (
+                      <Select 
+                        value={slot.subject || ""} 
+                        onValueChange={(v) => updateSlot(index, 'subject', v)}
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Subject" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {subjectOptions.map(s => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Select
                         value={slot.label || ""}
-                        onChange={(e) => updateSlot(index, "label", e.target.value)}
-                        className="w-[220px]"
-                      />
-                    ) : null}
+                        onValueChange={(v) => updateSlot(index, "label", v)}
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Select break type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Short Break">Short Break</SelectItem>
+                          <SelectItem value="Long Break">Long Break</SelectItem>
+                          <SelectItem value="Lunch Break">Lunch Break</SelectItem>
+                          <SelectItem value="Games">Games</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                     <Select 
                       value={slot.teacher_id || ""} 
                       onValueChange={(v) => updateSlot(index, 'teacher_id', v === "none" ? undefined : v)}
@@ -577,8 +655,10 @@ function EditTimetableDialog({ timetable, onSuccess }: { timetable: Timetable; o
                         if (next === "break") {
                           updateSlot(index, "teacher_id", undefined);
                           updateSlot(index, "room", undefined);
-                          if (!slot.label) updateSlot(index, "label", "Break");
-                          if (!slot.subject) updateSlot(index, "subject", "Break");
+                          if (!slot.label) updateSlot(index, "label", "Short Break");
+                          updateSlot(index, "subject", undefined);
+                        } else {
+                          updateSlot(index, "label", undefined);
                         }
                       }}
                     >
@@ -603,40 +683,51 @@ function EditTimetableDialog({ timetable, onSuccess }: { timetable: Timetable; o
                         ))}
                       </SelectContent>
                     </Select>
-                    <Select 
-                      value={slot.period_number.toString()} 
-                      onValueChange={(v) => updateSlot(index, 'period_number', parseInt(v))}
-                    >
-                      <SelectTrigger className="w-[100px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PERIODS.map(p => (
-                          <SelectItem key={p} value={p.toString()}>Period {p}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select 
-                      value={slot.subject || ""} 
-                      onValueChange={(v) => updateSlot(index, 'subject', v)}
-                    >
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Subject" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {subjectOptions.map(s => (
-                          <SelectItem key={s} value={s}>{s}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {slot.slot_type === "break" ? (
-                      <Input
-                        placeholder="Break label (e.g. Lunch)"
+                    {slot.slot_type === "lesson" && (
+                      <Select 
+                        value={slot.period_number.toString()} 
+                        onValueChange={(v) => updateSlot(index, 'period_number', parseInt(v))}
+                      >
+                        <SelectTrigger className="w-[100px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PERIODS.map(p => (
+                            <SelectItem key={p} value={p.toString()}>Period {p}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {slot.slot_type === "lesson" ? (
+                      <Select 
+                        value={slot.subject || ""} 
+                        onValueChange={(v) => updateSlot(index, 'subject', v)}
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Subject" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {subjectOptions.map(s => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Select
                         value={slot.label || ""}
-                        onChange={(e) => updateSlot(index, "label", e.target.value)}
-                        className="w-[220px]"
-                      />
-                    ) : null}
+                        onValueChange={(v) => updateSlot(index, "label", v)}
+                      >
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Select break type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Short Break">Short Break</SelectItem>
+                          <SelectItem value="Long Break">Long Break</SelectItem>
+                          <SelectItem value="Lunch Break">Lunch Break</SelectItem>
+                          <SelectItem value="Games">Games</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                     <Select 
                       value={slot.teacher_id || ""} 
                       onValueChange={(v) => updateSlot(index, 'teacher_id', v === "none" ? undefined : v)}
@@ -960,12 +1051,14 @@ export default function Timetable() {
 
   const { data: classes = [] } = useClasses();
   const { data: teachers = [] } = useTeachers();
+  const { toast } = useToast();
   const { data: timetables = [], isLoading, refetch } = useTimetables({
     academic_year: academicYear,
     term: selectedTerm && selectedTerm !== "all" ? parseInt(selectedTerm) : undefined,
   });
 
   const isAdmin = user?.role === "admin";
+  const canManageTimetables = user?.role === "admin" || user?.role === "teacher";
 
   // Filter timetables by selected class
   const filteredTimetables = useMemo(() => {
@@ -1007,6 +1100,12 @@ export default function Timetable() {
       });
   }, [allSlotsForSchool, selectedTeacherId]);
 
+  const handleDownloadAllPdfs = async () => {
+    if (filteredTimetables.length === 0) return;
+    await downloadAllClassTimetablesPdf(filteredTimetables, academicYear, selectedTerm);
+    toast({ title: `Downloaded ${filteredTimetables.length} PDF${filteredTimetables.length > 1 ? 's' : ''}` });
+  };
+
   if (isAdmin) {
     // Admin view - create and manage timetables
     return (
@@ -1022,12 +1121,12 @@ export default function Timetable() {
 
           <Tabs defaultValue="classes" className="space-y-4">
             <TabsList>
-              <TabsTrigger value="classes">Classes</TabsTrigger>
-              <TabsTrigger value="teachers">Teachers</TabsTrigger>
+              {canManageTimetables && <TabsTrigger value="classes">Classes</TabsTrigger>}
+              {canManageTimetables && <TabsTrigger value="teachers">Teachers</TabsTrigger>}
             </TabsList>
 
             <TabsContent value="classes" className="space-y-4">
-              <div className="flex gap-4">
+              <div className="flex gap-4 items-center">
                 <Select value={selectedTerm} onValueChange={setSelectedTerm}>
                   <SelectTrigger className="w-[150px]">
                     <SelectValue placeholder="Select term" />
@@ -1052,6 +1151,15 @@ export default function Timetable() {
                     ))}
                   </SelectContent>
                 </Select>
+                <Button
+                  variant="outline"
+                  onClick={handleDownloadAllPdfs}
+                  disabled={filteredTimetables.length === 0}
+                  className="ml-auto"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download All PDFs ({filteredTimetables.length})
+                </Button>
               </div>
 
               {isLoading ? (

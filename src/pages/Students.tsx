@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Search, Filter, Download, MoreHorizontal, Eye, Edit, Trash2, FileText, Loader2, ArrowLeftRight } from "lucide-react";
+import { NEMISExportButton } from "@/components/ui/ExportButtons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -85,7 +86,10 @@ export default function Students() {
             <h1 className="page-title font-display">Students</h1>
             <p className="page-subtitle">Manage student records and enrollment for {gradeBandLabel}</p>
           </div>
-          {canWrite && <AddStudentDialog />}
+          <div className="flex items-center gap-2">
+            {canWrite && <NEMISExportButton />}
+            {canWrite && <AddStudentDialog />}
+          </div>
         </div>
       </div>
 

@@ -39,6 +39,8 @@ export interface TeacherTimetableSlot {
   room: string | null;
   start_time?: string | null;
   end_time?: string | null;
+  slot_type?: "lesson" | "break";
+  label?: string | null;
   timetable_id: string;
   timetables: {
     grade: string;

@@ -32,6 +32,7 @@ const parentSchema = z.object({
   email: z.string().email("Please enter a valid email").optional().or(z.literal("")),
   address: z.string().max(200).optional(),
   occupation: z.string().max(100).optional(),
+  national_id_number: z.string().max(50).optional(),
 });
 
 type ParentFormData = z.infer<typeof parentSchema>;
@@ -52,6 +53,7 @@ export function AddParentDialog({ trigger }: AddParentDialogProps) {
       email: "",
       address: "",
       occupation: "",
+      national_id_number: "",
     },
   });
 
@@ -63,9 +65,10 @@ export function AddParentDialog({ trigger }: AddParentDialogProps) {
         .insert({
           full_name: data.full_name.trim(),
           phone: data.phone.trim(),
-        email: normalizedEmail,
+          email: normalizedEmail,
           address: data.address?.trim() || null,
           occupation: data.occupation?.trim() || null,
+          national_id_number: data.national_id_number?.trim() || null,
         })
         .select("id")
         .single();
@@ -182,6 +185,20 @@ export function AddParentDialog({ trigger }: AddParentDialogProps) {
                   <FormLabel>Occupation</FormLabel>
                   <FormControl>
                     <Input placeholder="Teacher, Farmer, etc." {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="national_id_number"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>National ID Number</FormLabel>
+                  <FormControl>
+                    <Input placeholder="12345678" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

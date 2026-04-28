@@ -4,6 +4,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FileText, TrendingUp, Star, Eye, Loader2 } from "lucide-react";
+import { KNECExportButton } from "@/components/ui/ExportButtons";
+import { CompetencyRadarChart, QualitativeNotesDisplay } from "@/components/ui/CompetencyRadarChart";
 import { useEffect, useMemo, useState } from "react";
 import { useRole } from "@/contexts/RoleContext";
 import { useAssessments, useCreateAssessment, useStudentAssessments, getLearningAreasForCategories, PERFORMANCE_LEVELS } from "@/hooks/useAssessments";
@@ -219,6 +221,31 @@ export default function Assessments() {
           </div>
         </div>
 
+        {/* Core Competency Radar Chart */}
+        {studentAssessments && studentAssessments.length > 0 && (
+          <div className="mb-6">
+            <CompetencyRadarChart
+              data={studentAssessments.map((a) => ({
+                subject: a.learning_area,
+                level: a.performance_level,
+                score: a.score,
+              }))}
+            />
+          </div>
+        )}
+
+        {/* Qualitative Notes */}
+        {Object.values(latestBySubject).some(
+          (a) => a.core_competency_notes || a.values_notes
+        ) && (
+          <div className="mb-6">
+            <QualitativeNotesDisplay
+              coreCompetencyNotes={Object.values(latestBySubject)[0]?.core_competency_notes}
+              valuesNotes={Object.values(latestBySubject)[0]?.values_notes}
+            />
+          </div>
+        )}
+
         <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
           <div className="px-5 py-4 border-b border-border">
             <h3 className="font-display font-semibold text-foreground">Assessment Results</h3>
@@ -234,6 +261,20 @@ export default function Assessments() {
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">{assessment.comments || "No comments"}</p>
+                  {(assessment.core_competency_notes || assessment.values_notes) && (
+                    <div className="mt-2 pt-2 border-t border-border/50">
+                      {assessment.core_competency_notes && (
+                        <p className="text-xs text-muted-foreground">
+                          <span className="font-medium">Core Competencies:</span> {assessment.core_competency_notes}
+                        </p>
+                      )}
+                      {assessment.values_notes && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          <span className="font-medium">Values:</span> {assessment.values_notes}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))
             ) : (
@@ -256,6 +297,11 @@ export default function Assessments() {
             <h1 className="page-title font-display">CBC Assessments</h1>
             <p className="page-subtitle">{canWrite ? "Record and track student performance" : "View assessment records"}</p>
           </div>
+          {canWrite && (
+            <div className="flex items-center gap-2">
+              <KNECExportButton />
+            </div>
+          )}
         </div>
       </div>
 

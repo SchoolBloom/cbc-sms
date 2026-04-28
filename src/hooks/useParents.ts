@@ -11,6 +11,7 @@ export interface Parent {
   email: string | null;
   address: string | null;
   occupation: string | null;
+  national_id_number?: string | null;
   created_at: string;
   children?: {
     id: string;

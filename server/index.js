@@ -248,12 +248,30 @@ app.post("/api/system/schools", async (req, res) => {
 
       const { error: roleError } = await supabase
         .from("user_roles")
-        .insert({
-          user_id: createdAdminUserId,
-          role: "admin",
-        });
+        .insert([
+          {
+            user_id: createdAdminUserId,
+            role: "admin",
+          },
+          {
+            user_id: createdAdminUserId,
+            role: "teacher",
+          }
+        ]);
 
       if (roleError) throw roleError;
+
+      // Create teacher record for the admin
+      const { error: teacherError } = await supabase
+        .from("teachers")
+        .upsert({
+          user_id: createdAdminUserId,
+          full_name: String(adminName).trim(),
+          email: String(adminEmail).trim().toLowerCase() || null,
+          phone: adminPhone ? String(adminPhone).trim() : null,
+        }, { onConflict: "user_id" });
+
+      if (teacherError) throw teacherError;
 
       return res.status(201).json({
         ok: true,
@@ -675,17 +693,17 @@ app.get("/api/timetables/teacher", async (req, res) => {
       return res.status(401).json({ error: authError || "Unauthorized." });
     }
 
-    const allowed = await hasAnyRole(user.id, ["teacher"]);
-    if (!allowed) {
-      return res.status(403).json({ error: "Teacher access required." });
-    }
-
     // Get teacher record
     const { data: teacher, error: teacherError } = await supabase
       .from("teachers")
       .select("id")
       .eq("user_id", user.id)
       .maybeSingle();
+
+    if (teacherError) throw teacherError;
+    if (!teacher) {
+      return res.status(403).json({ error: "Teacher access required." });
+    }
 
     if (teacherError) throw teacherError;
     if (!teacher) {
@@ -1054,6 +1072,121 @@ app.delete("/api/timetables/:timetableId", async (req, res) => {
     res.status(500).json({ error: err?.message || "Failed to delete timetable." });
   }
 });
+
+// Get all teachers including admins with teacher role, scoped to current user's school
+app.get("/api/teachers", async (req, res) => {
+  try {
+    const { user, error: authError } = await getAuthorizedUser(req);
+    if (authError || !user) {
+      return res.status(401).json({ error: authError || "Unauthorized." });
+    }
+
+    // Get the current user's school ID using the same logic as useSchoolScope
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("school_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (profileError) throw profileError;
+    let schoolId = profile?.school_id || null;
+
+    // If no profile school_id, check multiple sources
+    if (!schoolId) {
+      const [{ data: adminSchool }, { data: teacher }] = await Promise.all([
+        supabase
+          .from("schools")
+          .select("id")
+          .eq("admin_user_id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("teachers")
+          .select("school_id")
+          .eq("user_id", user.id)
+          .maybeSingle(),
+      ]);
+
+      schoolId = adminSchool?.id || teacher?.school_id || null;
+    }
+
+    if (!schoolId) {
+      return res.json({ teachers: [] });
+    }
+
+    console.log("[API /api/teachers] School ID:", schoolId);
+
+    // Get all teacher user IDs from the teachers table for this school
+    const { data: schoolTeachers, error: teachersError } = await supabase
+      .from("teachers")
+      .select("user_id")
+      .eq("school_id", schoolId);
+
+    if (teachersError) throw teachersError;
+    const teacherUserIds = (schoolTeachers || []).map((t) => t.user_id);
+    console.log("[API /api/teachers] Teacher user IDs from teachers table:", teacherUserIds);
+
+    // Get admin user IDs from the schools table for this school
+    const { data: schoolData, error: schoolError } = await supabase
+      .from("schools")
+      .select("admin_user_id")
+      .eq("id", schoolId)
+      .maybeSingle();
+
+    if (schoolError) throw schoolError;
+    const adminUserId = schoolData?.admin_user_id;
+    const adminUserIds = adminUserId ? [adminUserId] : [];
+    console.log("[API /api/teachers] Admin user ID from schools table:", adminUserId);
+
+    // Combine and deduplicate
+    const allUserIds = [...new Set([...teacherUserIds, ...adminUserIds])];
+    console.log("[API /api/teachers] All user IDs:", allUserIds);
+
+    if (allUserIds.length === 0) {
+      return res.json({ teachers: [] });
+    }
+
+    // Get profile info for these users
+    const { data: profiles, error: profilesError } = await supabase
+      .from("profiles")
+      .select("user_id, full_name, email, phone")
+      .in("user_id", allUserIds)
+      .order("full_name");
+
+    if (profilesError) throw profilesError;
+
+    // Get teacher records if they exist
+    const { data: teacherRecords, error: teacherError } = await supabase
+      .from("teachers")
+      .select("id, user_id")
+      .in("user_id", allUserIds);
+
+    if (teacherError) throw teacherError;
+    const teacherRecordMap = new Map(
+      (teacherRecords || []).map((t) => [t.user_id, t.id])
+    );
+
+    // Transform to Teacher interface
+    const teachers = (profiles || []).map((profile) => ({
+      id: teacherRecordMap.get(profile.user_id) || `user_${profile.user_id}`,
+      user_id: profile.user_id,
+      full_name: profile.full_name || "",
+      email: profile.email,
+      phone: profile.phone,
+      created_at: new Date().toISOString(),
+    }));
+
+    console.log("[API /api/teachers] Returning teachers:", teachers.length);
+    return res.json({ teachers });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err?.message || "Failed to load teachers." });
+  }
+});
+
+
+// ============ DEBUG ENDPOINTS ============
+import registerDebugTeachersEndpoint from "./debug-teachers.js";
+registerDebugTeachersEndpoint(app);
 
 // ============ END TIMETABLE API ENDPOINTS ============
 

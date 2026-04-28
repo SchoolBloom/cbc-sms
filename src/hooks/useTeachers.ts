@@ -15,13 +15,20 @@ export function useTeachers() {
   return useQuery({
     queryKey: ["teachers"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("teachers")
-        .select("id, user_id, full_name, email, phone, created_at")
-        .order("full_name");
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3001";
+      const { data } = await supabase.auth.getSession();
+      const response = await fetch(`${apiUrl}/api/teachers`, {
+        headers: {
+          Authorization: `Bearer ${data.session?.access_token}`,
+        },
+      });
 
-      if (error) throw error;
-      return data || [];
+      if (!response.ok) {
+        throw new Error("Failed to fetch teachers");
+      }
+
+      const result = await response.json();
+      return result.teachers || [];
     },
   });
 }

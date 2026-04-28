@@ -21,6 +21,7 @@ export type Database = {
           assessment_type: string
           class_id: string
           comments: string | null
+          core_competency_notes: string | null
           created_at: string
           id: string
           learning_area: string
@@ -30,6 +31,7 @@ export type Database = {
           strand: string | null
           student_id: string
           term: number
+          values_notes: string | null
         }
         Insert: {
           academic_year: string
@@ -37,6 +39,7 @@ export type Database = {
           assessment_type: string
           class_id: string
           comments?: string | null
+          core_competency_notes?: string | null
           created_at?: string
           id?: string
           learning_area: string
@@ -46,6 +49,7 @@ export type Database = {
           strand?: string | null
           student_id: string
           term: number
+          values_notes?: string | null
         }
         Update: {
           academic_year?: string
@@ -53,6 +57,7 @@ export type Database = {
           assessment_type?: string
           class_id?: string
           comments?: string | null
+          core_competency_notes?: string | null
           created_at?: string
           id?: string
           learning_area?: string
@@ -514,6 +519,7 @@ export type Database = {
           email: string | null
           full_name: string
           id: string
+          national_id_number: string | null
           occupation: string | null
           phone: string
           school_id: string | null
@@ -526,6 +532,7 @@ export type Database = {
           email?: string | null
           full_name: string
           id?: string
+          national_id_number?: string | null
           occupation?: string | null
           phone: string
           school_id?: string | null
@@ -538,6 +545,7 @@ export type Database = {
           email?: string | null
           full_name?: string
           id?: string
+          national_id_number?: string | null
           occupation?: string | null
           phone?: string
           school_id?: string | null
@@ -706,6 +714,7 @@ export type Database = {
         Row: {
           admission_number: string
           assessment_number: string | null
+          birth_certificate_number: string | null
           class_id: string | null
           created_at: string
           date_of_birth: string
@@ -717,13 +726,17 @@ export type Database = {
           parent_id_secondary: string | null
           pathway: string | null
           photo_url: string | null
+          previous_school: string | null
           school_id: string | null
+          senior_pathway: string | null
           status: string
           updated_at: string
+          upi_number: string | null
         }
         Insert: {
           admission_number: string
           assessment_number?: string | null
+          birth_certificate_number?: string | null
           class_id?: string | null
           created_at?: string
           date_of_birth: string
@@ -735,13 +748,17 @@ export type Database = {
           parent_id_secondary?: string | null
           pathway?: string | null
           photo_url?: string | null
+          previous_school?: string | null
           school_id?: string | null
+          senior_pathway?: string | null
           status?: string
           updated_at?: string
+          upi_number?: string | null
         }
         Update: {
           admission_number?: string
           assessment_number?: string | null
+          birth_certificate_number?: string | null
           class_id?: string | null
           created_at?: string
           date_of_birth?: string
