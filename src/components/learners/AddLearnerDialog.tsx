@@ -34,10 +34,10 @@ import { Button } from "@/components/ui/button";
 import { Plus, Loader2 } from "lucide-react";
 import { SENIOR_SECONDARY_PATHWAYS, isSeniorSecondaryGrade } from "@/lib/schoolCategories";
 
-const studentSchema = z.object({
+const learnerSchema = z.object({
   admission_number: z.string().min(1, "Admission number is required").max(20),
   assessment_number: z.string().max(30).optional(),
-  birth_certificate_number: z.string().max(50).optional(),
+  birth_certificate_number: z.string().min(1, "Birth certificate number is required for NEMIS registration").max(50),
   upi_number: z.string().max(50).optional(),
   full_name: z.string().min(2, "Name must be at least 2 characters").max(100),
   date_of_birth: z.string().min(1, "Date of birth is required"),
@@ -57,18 +57,18 @@ const studentSchema = z.object({
   }
 );
 
-type StudentFormData = z.infer<typeof studentSchema>;
+type LearnerFormData = z.infer<typeof learnerSchema>;
 
-interface AddStudentDialogProps {
+interface AddLearnerDialogProps {
   trigger?: React.ReactNode;
 }
 
-export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
+export function AddLearnerDialog({ trigger }: AddLearnerDialogProps) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  const form = useForm<StudentFormData>({
-    resolver: zodResolver(studentSchema),
+  const form = useForm<LearnerFormData>({
+    resolver: zodResolver(learnerSchema),
     defaultValues: {
       admission_number: "",
       assessment_number: "",
@@ -125,8 +125,8 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
     },
   });
 
-  const createStudent = useMutation({
-    mutationFn: async (data: StudentFormData) => {
+  const createLearner = useMutation({
+    mutationFn: async (data: LearnerFormData) => {
       const { error } = await supabase.from("learners").insert({
         admission_number: data.admission_number.trim(),
         assessment_number: data.assessment_number?.trim() || null,
@@ -146,8 +146,8 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Student added successfully");
-      queryClient.invalidateQueries({ queryKey: ["students"] });
+      toast.success("Learner added successfully");
+      queryClient.invalidateQueries({ queryKey: ["learners"] });
       setOpen(false);
       form.reset();
     },
@@ -156,12 +156,12 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
     },
   });
 
-  const onSubmit = (data: StudentFormData) => {
+  const onSubmit = (data: LearnerFormData) => {
     if (requiresPathway && !data.pathway) {
-      form.setError("pathway", { message: "Pathway is required for Grade 10 to Grade 12 students" });
+      form.setError("pathway", { message: "Pathway is required for Grade 10 to Grade 12 learners" });
       return;
     }
-    createStudent.mutate(data);
+    createLearner.mutate(data);
   };
 
   return (
@@ -170,15 +170,15 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
         {trigger || (
           <Button className="gap-2">
             <Plus className="w-4 h-4" />
-            Add Student
+            Add Learner
           </Button>
         )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Student</DialogTitle>
+          <DialogTitle>Add New Learner</DialogTitle>
           <DialogDescription>
-            Enter the student's details. All fields marked with * are required.
+            Enter the learner's details. All fields marked with * are required.
           </DialogDescription>
         </DialogHeader>
 
@@ -334,7 +334,7 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
               <FormField
                 control={form.control}
                 name="pathway"
-                rules={{ required: "Pathway is required for Grade 10 to Grade 12 students" }}
+                rules={{ required: "Pathway is required for Grade 10 to Grade 12 learners" }}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Pathway *</FormLabel>
@@ -434,14 +434,14 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={createStudent.isPending}>
-                {createStudent.isPending ? (
+              <Button type="submit" disabled={createLearner.isPending}>
+                {createLearner.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Adding...
                   </>
                 ) : (
-                  "Add Student"
+                  "Add Learner"
                 )}
               </Button>
             </div>

@@ -6,23 +6,18 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth, type AppRole } from "@/contexts/AuthContext";
 import { RoleProvider } from "@/contexts/RoleContext";
 import Dashboard from "./pages/Dashboard";
-import Students from "./pages/Students";
+import Learners from "./pages/Learners";
 import Classes from "./pages/Classes";
-import Attendance from "./pages/Attendance";
 import Assessments from "./pages/Assessments";
-import Fees from "./pages/Fees";
 import Parents from "./pages/Parents";
 import Teachers from "./pages/Teachers";
-import Notices from "./pages/Notices";
-import Reports from "./pages/Reports";
+import Pathways from "./pages/Pathways";
+import SBATasks from "./pages/SBATasks";
+import PlatformSchools from "./pages/PlatformSchools";
 import Settings from "./pages/Settings";
-import Assignments from "./pages/Assignments";
-import CalendarPage from "./pages/Calendar";
-import LibraryPage from "./pages/Library";
 import Login from "./pages/Login";
 import AwaitingAllocation from "./pages/AwaitingAllocation";
 import NotFound from "./pages/NotFound";
-import Timetable from "./pages/Timetable";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient({
@@ -60,7 +55,7 @@ const roleDefaultRoutes: Record<AppRole, string> = {
   parent: "/",
   bursar: "/",
   librarian: "/",
-  system_admin: "/",
+  system_admin: "/platform/schools",
 };
 
 function getDefaultRoute(role: AppRole | null | undefined) {
@@ -98,7 +93,12 @@ function RoleProtectedRoute({
 
 function RoleHome() {
   const { user } = useAuth();
-  const defaultRoute = getDefaultRoute(user?.role);
+
+  if (!user?.role) {
+    return <Navigate to="/awaiting-allocation" replace />;
+  }
+
+  const defaultRoute = getDefaultRoute(user.role);
 
   if (defaultRoute !== "/") {
     return <Navigate to={defaultRoute} replace />;
@@ -131,21 +131,15 @@ function AppRoutes() {
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/awaiting-allocation" element={<AwaitingAllocation />} />
       <Route path="/" element={<ProtectedRoute><RoleHome /></ProtectedRoute>} />
-      <Route path="/library" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent", "librarian"]}><LibraryPage /></RoleProtectedRoute>} />
-      <Route path="/students" element={<RoleProtectedRoute allowedRoles={["admin"]}><Students /></RoleProtectedRoute>} />
+      <Route path="/platform/schools" element={<RoleProtectedRoute allowedRoles={["system_admin"]}><PlatformSchools /></RoleProtectedRoute>} />
+      <Route path="/learners" element={<RoleProtectedRoute allowedRoles={["admin"]}><Learners /></RoleProtectedRoute>} />
       <Route path="/classes" element={<RoleProtectedRoute allowedRoles={["admin", "teacher"]}><Classes /></RoleProtectedRoute>} />
-      <Route path="/attendance" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent"]}><Attendance /></RoleProtectedRoute>} />
+      <Route path="/sba-tasks" element={<RoleProtectedRoute allowedRoles={["admin", "teacher"]}><SBATasks /></RoleProtectedRoute>} />
       <Route path="/assessments" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent"]}><Assessments /></RoleProtectedRoute>} />
-      <Route path="/fees" element={<RoleProtectedRoute allowedRoles={["admin", "parent", "bursar"]}><Fees /></RoleProtectedRoute>} />
-      <Route path="/parents" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "bursar"]}><Parents /></RoleProtectedRoute>} />
+      <Route path="/parents" element={<RoleProtectedRoute allowedRoles={["admin"]}><Parents /></RoleProtectedRoute>} />
       <Route path="/teachers" element={<RoleProtectedRoute allowedRoles={["admin"]}><Teachers /></RoleProtectedRoute>} />
-      <Route path="/notices" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent"]}><Notices /></RoleProtectedRoute>} />
-      <Route path="/calendar" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent", "bursar"]}><CalendarPage /></RoleProtectedRoute>} />
-      <Route path="/reports" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent", "bursar"]}><Reports /></RoleProtectedRoute>} />
-      <Route path="/assignments" element={<RoleProtectedRoute allowedRoles={["admin"]}><Assignments /></RoleProtectedRoute>} />
-      <Route path="/timetable" element={<RoleProtectedRoute allowedRoles={["admin", "teacher"]}><Timetable /></RoleProtectedRoute>} />
-      <Route path="/subjects" element={<Navigate to="/assignments" replace />} />
-      <Route path="/settings" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent", "bursar", "librarian", "system_admin"]}><Settings /></RoleProtectedRoute>} />
+      <Route path="/pathways" element={<RoleProtectedRoute allowedRoles={["admin", "parent"]}><Pathways /></RoleProtectedRoute>} />
+      <Route path="/settings" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent", "system_admin"]}><Settings /></RoleProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

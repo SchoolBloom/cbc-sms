@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-export interface Student {
+export interface Learner {
   id: string;
   admission_number: string;
   assessment_number?: string | null;
@@ -11,6 +11,7 @@ export interface Student {
   full_name: string;
   date_of_birth: string;
   gender: string;
+  grade?: string | null;
   class_id: string | null;
   parent_id: string | null;
   parent_id_secondary: string | null;
@@ -40,12 +41,12 @@ export interface Student {
   } | null;
 }
 
-export function useStudents() {
+export function useLearners() {
   return useQuery({
-    queryKey: ["students"],
+    queryKey: ["learners"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("students")
+        .from("learners")
         .select(`
           *,
           classes:class_id (id, grade, stream),
@@ -53,55 +54,51 @@ export function useStudents() {
           secondary_parent:parent_id_secondary (id, full_name, phone)
         `)
         .order("full_name");
-      
+
       if (error) throw error;
-      return data as Student[];
+      return data as Learner[];
     },
   });
 }
 
-export function useUpdateStudentStatus() {
+export function useUpdateLearnerStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
-      studentIds,
+      learnerIds,
       status,
       clearClass,
     }: {
-      studentIds: string[];
+      learnerIds: string[];
       status: string;
       clearClass?: boolean;
     }) => {
-      if (studentIds.length === 0) return;
+      if (learnerIds.length === 0) return;
 
       const updates: Record<string, string | null> = { status };
       if (clearClass) updates.class_id = null;
 
-      const { error } = await supabase
-        .from("students")
-        .update(updates)
-        .in("id", studentIds);
-
+      const { error } = await supabase.from("learners").update(updates).in("id", learnerIds);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["students"] });
-      toast.success("Student records updated");
+      queryClient.invalidateQueries({ queryKey: ["learners"] });
+      toast.success("Learner records updated");
     },
     onError: (error) => {
-      console.error("Error updating students:", error);
-      toast.error("Failed to update students");
+      console.error("Error updating learners:", error);
+      toast.error("Failed to update learners");
     },
   });
 }
 
-export function useStudent(id: string) {
+export function useLearner(id: string) {
   return useQuery({
-    queryKey: ["students", id],
+    queryKey: ["learners", id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("students")
+        .from("learners")
         .select(`
           *,
           classes:class_id (id, grade, stream),
@@ -110,15 +107,15 @@ export function useStudent(id: string) {
         `)
         .eq("id", id)
         .maybeSingle();
-      
+
       if (error) throw error;
-      return data as Student | null;
+      return data as Learner | null;
     },
     enabled: !!id,
   });
 }
 
-export function useUpdateStudent() {
+export function useUpdateLearner() {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -130,9 +127,12 @@ export function useUpdateStudent() {
       updates: {
         admission_number?: string;
         assessment_number?: string | null;
+        birth_certificate_number?: string | null;
+        upi_number?: string | null;
         full_name?: string;
         date_of_birth?: string;
         gender?: string;
+        grade?: string | null;
         class_id?: string | null;
         parent_id?: string | null;
         parent_id_secondary?: string | null;
@@ -141,35 +141,35 @@ export function useUpdateStudent() {
         status?: string;
       };
     }) => {
-      const { error } = await supabase.from("students").update(updates).eq("id", id);
+      const { error } = await supabase.from("learners").update(updates).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["students"] });
-      toast.success("Student updated successfully");
+      queryClient.invalidateQueries({ queryKey: ["learners"] });
+      toast.success("Learner updated successfully");
     },
     onError: (error) => {
-      console.error("Error updating student:", error);
-      toast.error("Failed to update student");
+      console.error("Error updating learner:", error);
+      toast.error("Failed to update learner");
     },
   });
 }
 
-export function useDeleteStudent() {
+export function useDeleteLearner() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (studentId: string) => {
-      const { error } = await supabase.from("students").delete().eq("id", studentId);
+    mutationFn: async (learnerId: string) => {
+      const { error } = await supabase.from("learners").delete().eq("id", learnerId);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["students"] });
-      toast.success("Student deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["learners"] });
+      toast.success("Learner deleted successfully");
     },
     onError: (error) => {
-      console.error("Error deleting student:", error);
-      toast.error("Failed to delete student");
+      console.error("Error deleting learner:", error);
+      toast.error("Failed to delete learner");
     },
   });
 }

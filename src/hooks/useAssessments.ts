@@ -160,7 +160,7 @@ export function useStudentAssessments(studentId?: string) {
       const { data, error } = await supabase
         .from("assessments")
         .select("*")
-        .eq("student_id", studentId)
+        .eq("learner_id", studentId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -219,3 +219,152 @@ export function useBulkCreateAssessments() {
     },
   });
 }
+
+export interface Strand {
+  id: string;
+  code: string;
+  name: string;
+  learning_area: string;
+  grade_band: string;
+  description: string | null;
+  active: boolean;
+}
+
+export interface SubStrand {
+  id: string;
+  strand_id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  rubric_levels: string[];
+  active: boolean;
+}
+
+export interface AssessmentRecordInsert {
+  learner_id: string;
+  strand_id: string;
+  sub_strand_id: string;
+  teacher_id: string;
+  term: number;
+  year: string;
+  rubric_score: 'Exceeds' | 'Meets' | 'Approaches' | 'Below';
+  qualitative_notes?: string | null;
+  core_competency_notes?: string | null;
+  values_notes?: string | null;
+}
+
+export function useStrands(learningArea?: string, gradeBand?: string) {
+  return useQuery({
+    queryKey: ["strands", learningArea, gradeBand],
+    queryFn: async () => {
+      let query = supabase.from("strands").select("*").eq("active", true);
+      if (learningArea) {
+        query = query.eq("learning_area", learningArea);
+      }
+      if (gradeBand) {
+        query = query.eq("grade_band", gradeBand);
+      }
+      const { data, error } = await query.order("code");
+      if (error) throw error;
+      return data as Strand[];
+    },
+  });
+}
+
+export function useSubStrands(strandId?: string) {
+  return useQuery({
+    queryKey: ["sub-strands", strandId],
+    queryFn: async () => {
+      if (!strandId) return [];
+      const { data, error } = await supabase
+        .from("sub_strands")
+        .select("*")
+        .eq("strand_id", strandId)
+        .eq("active", true)
+        .order("code");
+      if (error) throw error;
+      
+      return (data || []).map((d: any) => ({
+        ...d,
+        rubric_levels: typeof d.rubric_levels === "string" 
+          ? JSON.parse(d.rubric_levels) 
+          : (Array.isArray(d.rubric_levels) ? d.rubric_levels : ["Exceeds", "Meets", "Approaches", "Below"])
+      })) as SubStrand[];
+    },
+    enabled: !!strandId,
+  });
+}
+
+export function useCreateAssessmentRecord() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (record: AssessmentRecordInsert) => {
+      const { data, error } = await supabase
+        .from("assessment_records")
+        .insert(record)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assessment-records"] });
+      queryClient.invalidateQueries({ queryKey: ["student-assessment-records"] });
+      toast.success("Continuous assessment recorded successfully!");
+    },
+    onError: (error: Error) => {
+      console.error("Error recording assessment record:", error);
+      toast.error(error.message || "Failed to record assessment");
+    },
+  });
+}
+
+export function useAssessmentRecords(classId?: string) {
+  return useQuery({
+    queryKey: ["assessment-records", classId],
+    queryFn: async () => {
+      let query = supabase
+        .from("assessment_records")
+        .select(`
+          *,
+          learner:learners(id, full_name, admission_number, class_id),
+          sub_strand:sub_strands(id, name, strand:strands(id, name, learning_area))
+        `)
+        .order("created_at", { ascending: false });
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      if (classId && data) {
+        return data.filter((row: any) => row.learner?.class_id === classId);
+      }
+
+      return data;
+    },
+  });
+}
+
+export function useStudentAssessmentRecords(studentId?: string) {
+  return useQuery({
+    queryKey: ["student-assessment-records", studentId],
+    queryFn: async () => {
+      if (!studentId) return [];
+      
+      const { data, error } = await supabase
+        .from("assessment_records")
+        .select(`
+          *,
+          sub_strand:sub_strands(id, name, strand:strands(id, name, learning_area))
+        `)
+        .eq("learner_id", studentId)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!studentId,
+  });
+}
+

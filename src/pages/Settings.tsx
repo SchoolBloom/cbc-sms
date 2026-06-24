@@ -19,12 +19,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AssignBursarDialog } from "@/components/users/AssignBursarDialog";
-import { AssignLibrarianDialog } from "@/components/users/AssignLibrarianDialog";
 import { useAcademicYear, useUpsertAcademicYear } from "@/hooks/useAcademicYear";
 import { useSchoolScope } from "@/hooks/useSchoolScope";
 import { getSchoolCategoryLabel } from "@/lib/schoolCategories";
-import { useBursars, useLibrarians, useRemoveBursar, useRemoveLibrarian } from "@/hooks/useSchoolUsers";
 import {
   Bell,
   BookUser,
@@ -43,7 +40,6 @@ import {
 const adminSections = [
   { name: "School Profile", icon: Building2 },
   { name: "Academic Year", icon: Calendar },
-  { name: "User Management", icon: Users },
   { name: "Security", icon: Shield },
   { name: "Notifications", icon: Bell },
   { name: "Backup & Data", icon: Database },
@@ -669,7 +665,6 @@ export default function Settings() {
                     { label: "School admins", value: systemRoleBreakdown.admin || 0 },
                     { label: "Teachers", value: systemRoleBreakdown.teacher || 0 },
                     { label: "Parents", value: systemRoleBreakdown.parent || 0 },
-                    { label: "Bursars", value: systemRoleBreakdown.bursar || 0 },
                   ].map((item) => (
                     <div key={item.label} className="rounded-xl bg-muted/40 px-4 py-3">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</p>
@@ -983,25 +978,7 @@ export default function Settings() {
             </div>
           )}
 
-          {user.role === "admin" && activeSection === "User Management" && (
-            <div className="bg-card rounded-xl border border-border/50 p-6 space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <Users className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <h2 className="font-display font-semibold text-foreground">User Management</h2>
-                  <p className="text-sm text-muted-foreground">Assign operational roles and keep the right staff in the right workflows.</p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <AssignBursarDialog />
-                <AssignLibrarianDialog />
-              </div>
 
-              <SchoolUsersList />
-            </div>
-          )}
 
           {user.role === "admin" && ["Security", "Notifications", "Backup & Data"].includes(activeSection) && (
             <div className="space-y-6">
@@ -1043,96 +1020,7 @@ export default function Settings() {
   );
 }
 
-function SchoolUsersList() {
-  const { data: bursars = [], isLoading: bursarsLoading } = useBursars();
-  const { data: librarians = [], isLoading: librariansLoading } = useLibrarians();
-  const removeBursar = useRemoveBursar();
-  const removeLibrarian = useRemoveLibrarian();
 
-  const handleRemoveBursar = (userId: string, name: string) => {
-    if (confirm(`Remove ${name} from bursar role?`)) {
-      removeBursar.mutate(userId);
-    }
-  };
-
-  const handleRemoveLibrarian = (userId: string, name: string) => {
-    if (confirm(`Remove ${name} from librarian role?`)) {
-      removeLibrarian.mutate(userId);
-    }
-  };
-
-  if (bursarsLoading && librariansLoading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-sm font-medium text-foreground flex items-center gap-2 mb-3">
-          <CreditCard className="w-4 h-4 text-muted-foreground" />
-          Bursars ({bursars.length})
-        </h3>
-        {bursars.length > 0 ? (
-          <div className="divide-y divide-border">
-            {bursars.map((bursar) => (
-              <div key={bursar.id} className="flex items-center justify-between py-2">
-                <div>
-                  <p className="font-medium text-foreground">{bursar.full_name || "Unknown"}</p>
-                  <p className="text-sm text-muted-foreground">{bursar.email || "No email"}</p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleRemoveBursar(bursar.user_id, bursar.full_name || "this user")}
-                  disabled={removeBursar.isPending}
-                  className="text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">No bursars assigned yet.</p>
-        )}
-      </div>
-
-      <div>
-        <h3 className="text-sm font-medium text-foreground flex items-center gap-2 mb-3">
-          <BookUser className="w-4 h-4 text-muted-foreground" />
-          Librarians ({librarians.length})
-        </h3>
-        {librarians.length > 0 ? (
-          <div className="divide-y divide-border">
-            {librarians.map((librarian) => (
-              <div key={librarian.id} className="flex items-center justify-between py-2">
-                <div>
-                  <p className="font-medium text-foreground">{librarian.full_name || "Unknown"}</p>
-                  <p className="text-sm text-muted-foreground">{librarian.email || "No email"}</p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleRemoveLibrarian(librarian.user_id, librarian.full_name || "this user")}
-                  disabled={removeLibrarian.isPending}
-                  className="text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">No librarians assigned yet.</p>
-        )}
-      </div>
-    </div>
-  );
-}
 
 interface SchoolData {
   id: string;

@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Plus } from "lucide-react";
 import { useClasses } from "@/hooks/useClasses";
-import { useStudents } from "@/hooks/useStudents";
+import { useLearners } from "@/hooks/useLearners";
 import { useCreateAssessment, getLearningAreasForCategories, PERFORMANCE_LEVELS } from "@/hooks/useAssessments";
 import { useRole } from "@/contexts/RoleContext";
 import { useSubjectAssignments } from "@/hooks/useSubjects";
@@ -33,7 +33,7 @@ export function AddAssessmentDialog() {
   const { user } = useRole();
   const { categories } = useSchoolScope();
   const { data: classes } = useClasses();
-  const { data: students } = useStudents();
+  const { data: students } = useLearners();
   const { data: subjectAssignments = [] } = useSubjectAssignments();
   const createAssessment = useCreateAssessment();
 
@@ -116,7 +116,7 @@ export function AddAssessmentDialog() {
 
     createAssessment.mutate(
       {
-        student_id: studentId,
+        learner_id: studentId,
         class_id: classId,
         learning_area: learningArea,
         performance_level: performanceLevel,

@@ -1,51 +1,29 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { Learner, useUpdateLearner } from "@/hooks/useLearners";
 import { SENIOR_SECONDARY_PATHWAYS, isSeniorSecondaryGrade } from "@/lib/schoolCategories";
 
-const studentSchema = z.object({
+const learnerSchema = z.object({
   admission_number: z.string().min(1, "Admission number is required").max(20),
   assessment_number: z.string().max(30).optional(),
-  birth_certificate_number: z.string().max(50).optional(),
+  birth_certificate_number: z.string().min(1, "Birth certificate number is required").max(50),
   upi_number: z.string().max(50).optional(),
   full_name: z.string().min(2, "Name must be at least 2 characters").max(100),
   date_of_birth: z.string().min(1, "Date of birth is required"),
   gender: z.enum(["male", "female"], { required_error: "Please select gender" }),
   class_id: z.string().optional(),
   pathway: z.enum(SENIOR_SECONDARY_PATHWAYS).optional(),
-  senior_pathway: z.enum(SENIOR_SECONDARY_PATHWAYS).optional(),
-  previous_school: z.string().max(255).optional(),
   parent_id: z.string().optional(),
   parent_id_secondary: z.string().optional(),
   medical_notes: z.string().max(500).optional(),
@@ -57,18 +35,19 @@ const studentSchema = z.object({
   }
 );
 
-type StudentFormData = z.infer<typeof studentSchema>;
+type LearnerFormData = z.infer<typeof learnerSchema>;
 
-interface AddStudentDialogProps {
-  trigger?: React.ReactNode;
+interface EditLearnerDialogProps {
+  learner: Learner | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
-  const [open, setOpen] = useState(false);
-  const queryClient = useQueryClient();
+export function EditLearnerDialog({ learner, open, onOpenChange }: EditLearnerDialogProps) {
+  const updateLearner = useUpdateLearner();
 
-  const form = useForm<StudentFormData>({
-    resolver: zodResolver(studentSchema),
+  const form = useForm<LearnerFormData>({
+    resolver: zodResolver(learnerSchema),
     defaultValues: {
       admission_number: "",
       assessment_number: "",
@@ -79,18 +58,33 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
       gender: undefined,
       class_id: "",
       pathway: undefined,
-      senior_pathway: undefined,
-      previous_school: "",
       parent_id: "",
       parent_id_secondary: "",
       medical_notes: "",
     },
   });
+
+  useEffect(() => {
+    if (!learner) return;
+    form.reset({
+      admission_number: learner.admission_number,
+      assessment_number: learner.assessment_number || "",
+      birth_certificate_number: learner.birth_certificate_number || "",
+      upi_number: learner.upi_number || "",
+      full_name: learner.full_name,
+      date_of_birth: learner.date_of_birth,
+      gender: learner.gender as "male" | "female",
+      class_id: learner.class_id || "",
+      pathway: learner.pathway || undefined,
+      parent_id: learner.parent_id || "",
+      parent_id_secondary: learner.parent_id_secondary || "",
+      medical_notes: learner.medical_notes || "",
+    });
+  }, [form, learner]);
   const primaryParentId = form.watch("parent_id");
   const secondaryParentId = form.watch("parent_id_secondary");
   const selectedClassId = form.watch("class_id");
 
-  // Fetch classes for dropdown
   const { data: classes = [] } = useQuery({
     queryKey: ["classes"],
     queryFn: async () => {
@@ -101,6 +95,7 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
       if (error) throw error;
       return data;
     },
+    enabled: open,
   });
   const selectedClass = classes.find((cls) => cls.id === selectedClassId);
   const requiresPathway = isSeniorSecondaryGrade(selectedClass?.grade);
@@ -112,7 +107,6 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
     }
   }, [form, requiresPathway]);
 
-  // Fetch parents for dropdown
   const { data: parents = [] } = useQuery({
     queryKey: ["parents"],
     queryFn: async () => {
@@ -123,65 +117,47 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
       if (error) throw error;
       return data;
     },
+    enabled: open,
   });
 
-  const createStudent = useMutation({
-    mutationFn: async (data: StudentFormData) => {
-      const { error } = await supabase.from("learners").insert({
-        admission_number: data.admission_number.trim(),
-        assessment_number: data.assessment_number?.trim() || null,
-        birth_certificate_number: data.birth_certificate_number?.trim() || null,
-        upi_number: data.upi_number?.trim() || null,
-        full_name: data.full_name.trim(),
-        date_of_birth: data.date_of_birth,
-        gender: data.gender,
-        class_id: data.class_id || null,
-        pathway: requiresPathway ? data.pathway || null : null,
-        senior_pathway: requiresPathway ? data.senior_pathway || null : null,
-        previous_school: data.previous_school?.trim() || null,
-        parent_id: data.parent_id || null,
-        parent_id_secondary: data.parent_id_secondary || null,
-        medical_notes: data.medical_notes?.trim() || null,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Student added successfully");
-      queryClient.invalidateQueries({ queryKey: ["students"] });
-      setOpen(false);
-      form.reset();
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
-  });
-
-  const onSubmit = (data: StudentFormData) => {
+  const onSubmit = (data: LearnerFormData) => {
+    if (!learner) return;
     if (requiresPathway && !data.pathway) {
-      form.setError("pathway", { message: "Pathway is required for Grade 10 to Grade 12 students" });
+      form.setError("pathway", { message: "Pathway is required for Grade 10 to Grade 12 learners" });
       return;
     }
-    createStudent.mutate(data);
+    updateLearner.mutate(
+      {
+        id: learner.id,
+        updates: {
+          admission_number: data.admission_number.trim(),
+          assessment_number: data.assessment_number?.trim() || null,
+          birth_certificate_number: data.birth_certificate_number?.trim() || null,
+          upi_number: data.upi_number?.trim() || null,
+          full_name: data.full_name.trim(),
+          date_of_birth: data.date_of_birth,
+          gender: data.gender,
+          class_id: data.class_id || null,
+          pathway: requiresPathway ? data.pathway || null : null,
+          parent_id: data.parent_id || null,
+          parent_id_secondary: data.parent_id_secondary || null,
+          medical_notes: data.medical_notes?.trim() || null,
+        },
+      },
+      {
+        onSuccess: () => onOpenChange(false),
+      }
+    );
   };
 
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger || (
-          <Button className="gap-2">
-            <Plus className="w-4 h-4" />
-            Add Student
-          </Button>
-        )}
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Add New Student</DialogTitle>
-          <DialogDescription>
-            Enter the student's details. All fields marked with * are required.
-          </DialogDescription>
-        </DialogHeader>
+  if (!learner) return null;
 
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Learner</DialogTitle>
+        </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -228,6 +204,35 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
                         <SelectItem value="female">Female</SelectItem>
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="birth_certificate_number"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Birth Certificate No. *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="BCN-2025-001" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="upi_number"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>UPI Number</FormLabel>
+                    <FormControl>
+                      <Input placeholder="NEMIS UPI" {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -287,54 +292,10 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
               )}
             />
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="birth_certificate_number"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Birth Certificate No.</FormLabel>
-                    <FormControl>
-                      <Input placeholder="BCN-2025-001" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="upi_number"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>UPI Number</FormLabel>
-                    <FormControl>
-                      <Input placeholder="NEMIS UPI" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="previous_school"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Previous School</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Transfer from..." {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
             {requiresPathway && (
               <FormField
                 control={form.control}
                 name="pathway"
-                rules={{ required: "Pathway is required for Grade 10 to Grade 12 students" }}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Pathway *</FormLabel>
@@ -420,7 +381,7 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
                   <FormLabel>Medical Notes</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Any allergies, conditions, or medical information..."
+                      placeholder="Allergies, medications, etc."
                       className="resize-none"
                       {...field}
                     />
@@ -431,17 +392,17 @@ export function AddStudentDialog({ trigger }: AddStudentDialogProps) {
             />
 
             <div className="flex justify-end gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={createStudent.isPending}>
-                {createStudent.isPending ? (
+              <Button type="submit" disabled={updateLearner.isPending}>
+                {updateLearner.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Adding...
+                    Saving...
                   </>
                 ) : (
-                  "Add Student"
+                  "Save Changes"
                 )}
               </Button>
             </div>

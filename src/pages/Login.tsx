@@ -84,9 +84,9 @@ export default function Login() {
                 className="text-3xl font-semibold text-foreground"
                 style={{ fontFamily: "Fraunces, 'Iowan Old Style', 'Palatino Linotype', serif" }}
               >
-                School Bloom
+                SchoolBloom
               </h1>
-              <p className="text-sm text-muted-foreground">School management</p>
+              <p className="text-sm text-muted-foreground">Competency-Based Assessment Portal</p>
             </div>
           </div>
 
@@ -95,19 +95,19 @@ export default function Login() {
               className="text-4xl md:text-5xl leading-tight text-foreground"
               style={{ fontFamily: "Fraunces, 'Iowan Old Style', 'Palatino Linotype', serif" }}
             >
-              A calmer way to run school life.
+              A calmer way to run CBC assessment.
             </h2>
             <p className="text-base text-muted-foreground max-w-lg">
-              Track CBC performance, assign learning areas, and keep families in the loop, all in one place.
+              Longitudinal learner records, school-based assessment, NEMIS/KNEC compliance, and parent progress — in one place.
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4 max-w-md">
             {[
-              { label: "CBC-ready", value: "Primary, JSS, SSS" },
-              { label: "Assessments", value: "Real‑time" },
-              { label: "Attendance", value: "Daily" },
-              { label: "Reporting", value: "Instant" },
+              { label: "CBC-ready", value: "Primary to SSS" },
+              { label: "Assessments", value: "Strand-based SBA" },
+              { label: "Compliance", value: "NEMIS & KNEC" },
+              { label: "Parents", value: "Realtime view" },
             ].map((item) => (
               <div key={item.label} className="rounded-2xl border border-border/60 bg-card/70 px-4 py-3">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</p>

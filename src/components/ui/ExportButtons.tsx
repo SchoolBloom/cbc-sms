@@ -25,6 +25,8 @@ import {
   downloadNEMISExport,
   fetchAssessmentsForKNECExport,
   downloadKNECExport,
+  fetchLearnersForKNECExport,
+  downloadKNECRegistrationExport,
 } from "@/lib/nemisKnecExport";
 import { SENIOR_SECONDARY_GRADES } from "@/lib/schoolCategories";
 import { toast } from "sonner";
@@ -178,5 +180,59 @@ export function KNECExportButton({ variant = "outline", size = "sm", showLabels 
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+export function KNECRegistrationExportButton({ variant = "outline", size = "sm", showLabels = true }: ExportButtonsProps) {
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const learners = await fetchLearnersForKNECExport(supabase);
+      
+      if (learners.length === 0) {
+        toast.info("No learners found without KNEC assessment numbers. All learners may already be registered.");
+        return;
+      }
+
+      downloadKNECRegistrationExport(learners);
+      toast.success(`Exported ${learners.length} learners for KNEC registration`);
+    } catch (error) {
+      console.error("KNEC registration export error:", error);
+      toast.error("Failed to export KNEC registration data");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant={variant} size={size} className="gap-2">
+          {isExporting ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Download className="w-4 h-4" />
+          )}
+          {showLabels && "Export KNEC Registration"}
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Export KNEC Registration</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will export all learners without KNEC assessment numbers who have a birth certificate number.
+            The CSV will be formatted for upload to the KNEC portal.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleExport} disabled={isExporting}>
+            {isExporting ? "Exporting..." : "Export CSV"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

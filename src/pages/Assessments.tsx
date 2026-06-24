@@ -3,47 +3,112 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { FileText, TrendingUp, Star, Eye, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FileText, TrendingUp, Star, Eye, Loader2, ArrowRight } from "lucide-react";
 import { KNECExportButton } from "@/components/ui/ExportButtons";
 import { CompetencyRadarChart, QualitativeNotesDisplay } from "@/components/ui/CompetencyRadarChart";
 import { useEffect, useMemo, useState } from "react";
 import { useRole } from "@/contexts/RoleContext";
-import { useAssessments, useCreateAssessment, useStudentAssessments, getLearningAreasForCategories, PERFORMANCE_LEVELS } from "@/hooks/useAssessments";
+import {
+  useAssessmentRecords,
+  useCreateAssessmentRecord,
+  useStudentAssessmentRecords,
+  useStrands,
+  useSubStrands,
+  getLearningAreasForCategories,
+  PERFORMANCE_LEVELS,
+} from "@/hooks/useAssessments";
 import { useClasses } from "@/hooks/useClasses";
-import { useStudents } from "@/hooks/useStudents";
+import { useLearners } from "@/hooks/useLearners";
 import { useSubjectAssignments } from "@/hooks/useSubjects";
 import { useSchoolScope } from "@/hooks/useSchoolScope";
+import { SBAIngestionTab } from "@/components/assessments/SBAIngestionTab";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
+
+const rubricScores = [
+  { value: "Exceeds", label: "Exceeds Expectations (EE)", color: "bg-success text-success-foreground" },
+  { value: "Meets", label: "Meets Expectations (ME)", color: "bg-primary text-primary-foreground" },
+  { value: "Approaches", label: "Approaches Expectations (AE)", color: "bg-warning text-warning-foreground" },
+  { value: "Below", label: "Below Expectations (BE)", color: "bg-destructive text-destructive-foreground" },
+];
 
 export default function Assessments() {
   const { user, selectedChildId, setSelectedChildId, hasPermission } = useRole();
   const canWrite = hasPermission("assessments:write");
+  const isAdmin = user.role === "admin";
   const { categories } = useSchoolScope();
-  const [selectedAssessment, setSelectedAssessment] = useState<any | null>(null);
+  const queryClient = useQueryClient();
+
+  const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
+  
+  // Form states
   const [classId, setClassId] = useState("");
   const [studentId, setStudentId] = useState("");
+  const [term, setTerm] = useState("1");
+  const [year, setYear] = useState(new Date().getFullYear().toString());
   const [learningArea, setLearningArea] = useState("");
-  const [performanceLevel, setPerformanceLevel] = useState("");
-  const [assessmentType, setAssessmentType] = useState("");
-  const [strand, setStrand] = useState("");
-  const [comments, setComments] = useState("");
+  const [strandId, setStrandId] = useState("");
+  const [subStrandId, setSubStrandId] = useState("");
+  const [rubricScore, setRubricScore] = useState<any>("");
+  const [qualitativeNotes, setQualitativeNotes] = useState("");
+  const [coreCompetencyNotes, setCoreCompetencyNotes] = useState("");
+  const [valuesNotes, setValuesNotes] = useState("");
+
   const selectedChild = user.children?.find((child) => child.id === selectedChildId);
   const childInitials = selectedChild?.full_name
     ? selectedChild.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2)
     : "??";
 
-  const { data: assessments, isLoading } = useAssessments();
-  const { data: studentAssessments } = useStudentAssessments(
+  // Data fetching queries
+  const { data: assessmentRecords = [], isLoading } = useAssessmentRecords(classId || undefined);
+  const { data: studentRecords = [] } = useStudentAssessmentRecords(
     user.role === "parent" ? selectedChildId || undefined : undefined
   );
-  const { data: classes } = useClasses();
-  const { data: students } = useStudents();
+  
+  const { data: classes = [] } = useClasses();
+  const { data: students = [] } = useLearners();
   const { data: subjectAssignments = [] } = useSubjectAssignments();
-  const createAssessment = useCreateAssessment();
 
-  const getPerformanceCode = (level?: string | null) =>
-    PERFORMANCE_LEVELS.find((item) => item.level === level)?.code || level || "N/A";
-  const getPerformanceLabel = (level?: string | null) =>
-    PERFORMANCE_LEVELS.find((item) => item.level === level)?.name || "Performance";
+  // Selected student's grade to filter strands
+  const selectedStudentClassId = students.find(s => s.id === studentId)?.class_id;
+  const selectedStudentClass = classes.find(c => c.id === selectedStudentClassId || c.id === classId);
+  const studentGrade = selectedStudentClass?.grade;
+
+  // Query strands and sub-strands
+  const { data: strands = [] } = useStrands(learningArea || undefined, studentGrade || undefined);
+  const { data: subStrands = [] } = useSubStrands(strandId || undefined);
+
+  const createRecord = useCreateAssessmentRecord();
+
+  // Parent Portal Realtime subscription
+  useEffect(() => {
+    if (user.role !== "parent" || !selectedChildId) return;
+
+    const channel = supabase
+      .channel(`parent-assessment-records-${selectedChildId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "assessment_records",
+          filter: `learner_id=eq.${selectedChildId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["student-assessment-records", selectedChildId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedChildId, user.role, queryClient]);
+
+  const getRubricBadgeColor = (score?: string) => {
+    return rubricScores.find((r) => r.value === score)?.color || "bg-muted text-muted-foreground";
+  };
 
   const allowedClassIds = useMemo(() => {
     if (user.role !== "teacher") return null;
@@ -113,38 +178,48 @@ export default function Assessments() {
     }
   }, [allowedClassIds, classId]);
 
+  // Reset strand and sub-strand when learning area changes
+  useEffect(() => {
+    setStrandId("");
+    setSubStrandId("");
+  }, [learningArea]);
+
+  // Reset sub-strand when strand changes
+  useEffect(() => {
+    setSubStrandId("");
+  }, [strandId]);
+
   const handleSaveAssessment = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!canWrite) return;
-    if (user.role === "teacher" && !allowedLearningAreas.includes(learningArea)) {
+    if (!studentId || !strandId || !subStrandId || !rubricScore || !term || !year) {
       return;
     }
 
-    const currentYear = new Date().getFullYear().toString();
-    const currentTerm = 1;
-
-    createAssessment.mutate(
+    createRecord.mutate(
       {
-        student_id: studentId,
-        class_id: classId,
-        learning_area: learningArea,
-        performance_level: performanceLevel,
-        assessment_type: assessmentType,
-        strand: strand || null,
-        comments: comments || null,
-        academic_year: currentYear,
-        term: currentTerm,
-        assessed_by: user.id,
+        learner_id: studentId,
+        strand_id: strandId,
+        sub_strand_id: subStrandId,
+        teacher_id: user.id,
+        term: parseInt(term),
+        year,
+        rubric_score: rubricScore,
+        qualitative_notes: qualitativeNotes || null,
+        core_competency_notes: coreCompetencyNotes || null,
+        values_notes: valuesNotes || null,
       },
       {
         onSuccess: () => {
           setStudentId("");
           setLearningArea("");
-          setPerformanceLevel("");
-          setAssessmentType("");
-          setStrand("");
-          setComments("");
+          setStrandId("");
+          setSubStrandId("");
+          setRubricScore("");
+          setQualitativeNotes("");
+          setCoreCompetencyNotes("");
+          setValuesNotes("");
         },
       }
     );
@@ -153,12 +228,13 @@ export default function Assessments() {
   // Parent view
   if (user.role === "parent") {
     // Group assessments by learning area (most recent for each)
-    const latestBySubject = studentAssessments?.reduce((acc, assessment) => {
-      if (!acc[assessment.learning_area] || new Date(assessment.created_at) > new Date(acc[assessment.learning_area].created_at)) {
-        acc[assessment.learning_area] = assessment;
+    const latestBySubject = studentRecords.reduce((acc, record) => {
+      const area = record.sub_strand?.strand?.learning_area || "Other";
+      if (!acc[area] || new Date(record.created_at) > new Date(acc[area].created_at)) {
+        acc[area] = record;
       }
       return acc;
-    }, {} as Record<string, typeof studentAssessments[0]>) || {};
+    }, {} as Record<string, typeof studentRecords[0]>);
 
     return (
       <DashboardLayout>
@@ -212,36 +288,24 @@ export default function Assessments() {
             <Star className="w-5 h-5 text-accent" />CBC Performance Levels
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {PERFORMANCE_LEVELS.map((level) => (
-              <div key={level.level} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                <Badge className={level.color}>{level.level}</Badge>
-                <span className="text-sm text-foreground">{level.name}</span>
+            {rubricScores.map((level) => (
+              <div key={level.value} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                <Badge className={level.color}>{level.value}</Badge>
+                <span className="text-sm text-foreground">{level.label}</span>
               </div>
             ))}
           </div>
         </div>
 
         {/* Core Competency Radar Chart */}
-        {studentAssessments && studentAssessments.length > 0 && (
+        {studentRecords && studentRecords.length > 0 && (
           <div className="mb-6">
             <CompetencyRadarChart
-              data={studentAssessments.map((a) => ({
-                subject: a.learning_area,
-                level: a.performance_level,
-                score: a.score,
+              data={studentRecords.map((a) => ({
+                subject: a.sub_strand?.strand?.learning_area || "Other",
+                level: a.rubric_score,
+                score: a.rubric_score === "Exceeds" ? 4 : a.rubric_score === "Meets" ? 3 : a.rubric_score === "Approaches" ? 2 : 1,
               }))}
-            />
-          </div>
-        )}
-
-        {/* Qualitative Notes */}
-        {Object.values(latestBySubject).some(
-          (a) => a.core_competency_notes || a.values_notes
-        ) && (
-          <div className="mb-6">
-            <QualitativeNotesDisplay
-              coreCompetencyNotes={Object.values(latestBySubject)[0]?.core_competency_notes}
-              valuesNotes={Object.values(latestBySubject)[0]?.values_notes}
             />
           </div>
         )}
@@ -252,25 +316,30 @@ export default function Assessments() {
           </div>
           <div className="divide-y divide-border">
             {Object.values(latestBySubject).length > 0 ? (
-              Object.values(latestBySubject).map((assessment) => (
-                <div key={assessment.id} className="px-5 py-4">
+              Object.values(latestBySubject).map((record) => (
+                <div key={record.id} className="px-5 py-4">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-foreground">{assessment.learning_area}</span>
-                    <Badge className={PERFORMANCE_LEVELS.find(p => p.level === assessment.performance_level)?.color}>
-                      {getPerformanceCode(assessment.performance_level)}
+                    <div className="space-y-1">
+                      <span className="font-medium text-foreground">{record.sub_strand?.strand?.learning_area}</span>
+                      <p className="text-xs text-muted-foreground">
+                        {record.sub_strand?.strand?.name} <ArrowRight className="inline w-3 h-3" /> {record.sub_strand?.name}
+                      </p>
+                    </div>
+                    <Badge className={getRubricBadgeColor(record.rubric_score)}>
+                      {record.rubric_score}
                     </Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground">{assessment.comments || "No comments"}</p>
-                  {(assessment.core_competency_notes || assessment.values_notes) && (
-                    <div className="mt-2 pt-2 border-t border-border/50">
-                      {assessment.core_competency_notes && (
+                  <p className="text-sm text-muted-foreground mt-2">{record.qualitative_notes || "No comments"}</p>
+                  {(record.core_competency_notes || record.values_notes) && (
+                    <div className="mt-3 pt-3 border-t border-border/50 grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {record.core_competency_notes && (
                         <p className="text-xs text-muted-foreground">
-                          <span className="font-medium">Core Competencies:</span> {assessment.core_competency_notes}
+                          <span className="font-medium text-foreground">Core Competencies:</span> {record.core_competency_notes}
                         </p>
                       )}
-                      {assessment.values_notes && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          <span className="font-medium">Values:</span> {assessment.values_notes}
+                      {record.values_notes && (
+                        <p className="text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">CBC Values:</span> {record.values_notes}
                         </p>
                       )}
                     </div>
@@ -288,38 +357,10 @@ export default function Assessments() {
     );
   }
 
-  // Admin/Teacher view
-  return (
-    <DashboardLayout>
-      <div className="page-header">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="page-title font-display">CBC Assessments</h1>
-            <p className="page-subtitle">{canWrite ? "Record and track student performance" : "View assessment records"}</p>
-          </div>
-          {canWrite && (
-            <div className="flex items-center gap-2">
-              <KNECExportButton />
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="bg-card rounded-xl border border-border/50 p-5 mb-6">
-        <h3 className="font-display font-semibold text-foreground mb-4 flex items-center gap-2">
-          <Star className="w-5 h-5 text-accent" />CBC Performance Levels
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {PERFORMANCE_LEVELS.map((level) => (
-            <div key={level.level} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-              <Badge className={level.color}>{level.level}</Badge>
-              <span className="text-sm text-foreground">{level.name}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="bg-card rounded-xl border border-border/50 p-5 mb-6">
+  // Admin/Teacher Tabbed content
+  const renderAssessmentForm = () => (
+    <div className="space-y-6">
+      <div className="bg-card rounded-xl border border-border/50 p-5">
         <h3 className="font-display font-semibold text-foreground mb-4">Record Assessment</h3>
         <form onSubmit={handleSaveAssessment} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -378,30 +419,15 @@ export default function Assessments() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Assessment Type</label>
-              <Select value={assessmentType} onValueChange={setAssessmentType}>
+              <label className="text-sm font-medium text-foreground">Strand</label>
+              <Select value={strandId} onValueChange={setStrandId} disabled={!learningArea}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
+                  <SelectValue placeholder={learningArea ? "Select strand" : "Select learning area first"} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Formative">Formative Assessment</SelectItem>
-                  <SelectItem value="Summative">Summative Assessment</SelectItem>
-                  <SelectItem value="Project">Project Based</SelectItem>
-                  <SelectItem value="Portfolio">Portfolio</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Performance Level</label>
-              <Select value={performanceLevel} onValueChange={setPerformanceLevel}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select level" />
-                </SelectTrigger>
-                <SelectContent>
-                  {PERFORMANCE_LEVELS.map((level) => (
-                    <SelectItem key={level.level} value={level.level}>
-                      {level.code} - {level.name}
+                  {strands.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.code} - {s.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -409,26 +435,98 @@ export default function Assessments() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Strand (Optional)</label>
+              <label className="text-sm font-medium text-foreground">Sub-Strand</label>
+              <Select value={subStrandId} onValueChange={setSubStrandId} disabled={!strandId}>
+                <SelectTrigger>
+                  <SelectValue placeholder={strandId ? "Select sub-strand" : "Select strand first"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {subStrands.map((ss) => (
+                    <SelectItem key={ss.id} value={ss.id}>
+                      {ss.code} - {ss.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Rubric Score</label>
+              <Select value={rubricScore} onValueChange={setRubricScore} disabled={!subStrandId}>
+                <SelectTrigger>
+                  <SelectValue placeholder={subStrandId ? "Select rating" : "Select sub-strand first"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {rubricScores.map((score) => (
+                    <SelectItem key={score.value} value={score.value}>
+                      {score.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Term</label>
+              <Select value={term} onValueChange={setTerm}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select term" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Term 1</SelectItem>
+                  <SelectItem value="2">Term 2</SelectItem>
+                  <SelectItem value="3">Term 3</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Academic Year</label>
               <input
                 type="text"
-                value={strand}
-                onChange={(e) => setStrand(e.target.value)}
-                placeholder="Enter strand"
+                value={year}
+                onChange={(e) => setYear(e.target.value)}
+                placeholder="2026"
                 className="w-full rounded-lg border border-border/50 bg-background px-3 py-2 text-sm"
               />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Comments</label>
-            <textarea
-              value={comments}
-              onChange={(e) => setComments(e.target.value)}
-              placeholder="Teacher's comments on student performance..."
-              rows={3}
-              className="w-full rounded-lg border border-border/50 bg-background px-3 py-2 text-sm"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Qualitative Notes / Performance Remarks</label>
+              <textarea
+                value={qualitativeNotes}
+                onChange={(e) => setQualitativeNotes(e.target.value)}
+                placeholder="Specific comments on student performance..."
+                rows={3}
+                className="w-full rounded-lg border border-border/50 bg-background px-3 py-2 text-sm resize-none"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Core Competency remarks</label>
+              <textarea
+                value={coreCompetencyNotes}
+                onChange={(e) => setCoreCompetencyNotes(e.target.value)}
+                placeholder="Critical thinking, communication, collaboration observations..."
+                rows={3}
+                className="w-full rounded-lg border border-border/50 bg-background px-3 py-2 text-sm resize-none"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">CBC Values remarks</label>
+              <textarea
+                value={valuesNotes}
+                onChange={(e) => setValuesNotes(e.target.value)}
+                placeholder="Patriotism, integrity, respect, responsibility indicators..."
+                rows={3}
+                className="w-full rounded-lg border border-border/50 bg-background px-3 py-2 text-sm resize-none"
+              />
+            </div>
           </div>
 
           <div className="flex justify-end">
@@ -437,139 +535,181 @@ export default function Assessments() {
               disabled={
                 !canWrite ||
                 !studentId ||
-                !learningArea ||
-                !performanceLevel ||
-                !assessmentType ||
-                createAssessment.isPending
+                !strandId ||
+                !subStrandId ||
+                !rubricScore ||
+                createRecord.isPending
               }
             >
-              {createAssessment.isPending ? "Saving..." : "Save Assessment"}
+              {createRecord.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Assessment"
+              )}
             </Button>
           </div>
         </form>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-3">
-          <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
-            <div className="px-5 py-4 border-b border-border">
-              <h3 className="font-display font-semibold text-foreground">Recent Assessments</h3>
-            </div>
-            
-            {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-6 h-6 animate-spin text-primary" />
-              </div>
-            ) : assessments && assessments.length > 0 ? (
-              <div className="divide-y divide-border">
-                {assessments.slice(0, 10).map((assessment: any) => (
-                  <div key={assessment.id} className="px-5 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <TrendingUp className="w-5 h-5 text-primary" />
-                      <div>
-                        <p className="font-medium text-foreground">
-                          {assessment.student?.full_name || "Unknown"} - {assessment.learning_area}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Grade {assessment.class?.grade} {assessment.class?.stream} • {assessment.assessment_type}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge className={PERFORMANCE_LEVELS.find(p => p.level === assessment.performance_level)?.color}>
-                        {getPerformanceCode(assessment.performance_level)}
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedAssessment(assessment)}
-                        aria-label="View assessment details"
-                        title="View assessment details"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="py-12 text-center text-muted-foreground">
-                No assessments recorded yet. Click "New Assessment" to add one.
-              </div>
-            )}
+      <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
+        <div className="px-5 py-4 border-b border-border">
+          <h3 className="font-display font-semibold text-foreground">Recent Assessments</h3>
+        </div>
+        
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
           </div>
+        ) : assessmentRecords && assessmentRecords.length > 0 ? (
+          <div className="divide-y divide-border">
+            {assessmentRecords.slice(0, 10).map((record: any) => (
+              <div key={record.id} className="px-5 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                  <div>
+                    <p className="font-medium text-foreground">
+                      {record.learner?.full_name || "Unknown"} - {record.sub_strand?.strand?.learning_area}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {record.sub_strand?.strand?.name} <ArrowRight className="inline w-3 h-3 text-muted-foreground" /> {record.sub_strand?.name} • Year {record.year} Term {record.term}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className={getRubricBadgeColor(record.rubric_score)}>
+                    {record.rubric_score}
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedRecord(record)}
+                    aria-label="View assessment details"
+                    title="View assessment details"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-12 text-center text-muted-foreground">
+            No assessments recorded yet for this class selection.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <DashboardLayout>
+      <div className="page-header">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="page-title font-display">CBC Assessments</h1>
+            <p className="page-subtitle">Record and track learner longitudinal progress</p>
+          </div>
+          {canWrite && (
+            <div className="flex items-center gap-2">
+              <KNECExportButton />
+            </div>
+          )}
         </div>
       </div>
 
-      <Dialog open={!!selectedAssessment} onOpenChange={(open) => !open && setSelectedAssessment(null)}>
+      <div className="bg-card rounded-xl border border-border/50 p-5 mb-6">
+        <h3 className="font-display font-semibold text-foreground mb-4 flex items-center gap-2">
+          <Star className="w-5 h-5 text-accent" />CBC Performance Levels
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {rubricScores.map((level) => (
+            <div key={level.value} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+              <Badge className={level.color}>{level.value}</Badge>
+              <span className="text-foreground text-xs sm:text-sm">{level.label.split(" (")[0]}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {isAdmin ? (
+        <Tabs defaultValue="record" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 max-w-[400px] mb-6">
+            <TabsTrigger value="record">Record Assessment</TabsTrigger>
+            <TabsTrigger value="ingest">SBA CSV Ingestion</TabsTrigger>
+          </TabsList>
+          <TabsContent value="record" className="mt-0">
+            {renderAssessmentForm()}
+          </TabsContent>
+          <TabsContent value="ingest" className="mt-0">
+            <SBAIngestionTab />
+          </TabsContent>
+        </Tabs>
+      ) : (
+        renderAssessmentForm()
+      )}
+
+      {/* Details Dialog */}
+      <Dialog open={!!selectedRecord} onOpenChange={(open) => !open && setSelectedRecord(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Assessment Details</DialogTitle>
+            <DialogTitle>Continuous Assessment Details</DialogTitle>
           </DialogHeader>
-          {selectedAssessment && (
+          {selectedRecord && (
             <div className="space-y-4 text-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-muted-foreground">Student</p>
+                  <p className="text-xs text-muted-foreground">Learner</p>
                   <p className="font-medium text-foreground">
-                    {selectedAssessment.student?.full_name || "Unknown"}
+                    {selectedRecord.learner?.full_name || "Unknown"}
                   </p>
                 </div>
-                <Badge className={PERFORMANCE_LEVELS.find(p => p.level === selectedAssessment.performance_level)?.color}>
-                  {getPerformanceCode(selectedAssessment.performance_level)}
+                <Badge className={getRubricBadgeColor(selectedRecord.rubric_score)}>
+                  {selectedRecord.rubric_score}
                 </Badge>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-xs text-muted-foreground">Learning Area</p>
-                  <p className="font-medium text-foreground">{selectedAssessment.learning_area}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Performance</p>
-                  <p className="font-medium text-foreground">{getPerformanceLabel(selectedAssessment.performance_level)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Class</p>
-                  <p className="font-medium text-foreground">
-                    {selectedAssessment.class
-                      ? `${selectedAssessment.class.grade} ${selectedAssessment.class.stream}`
-                      : "-"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Assessment Type</p>
-                  <p className="font-medium text-foreground">{selectedAssessment.assessment_type}</p>
+                  <p className="font-medium text-foreground">{selectedRecord.sub_strand?.strand?.learning_area}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Strand</p>
-                  <p className="font-medium text-foreground">{selectedAssessment.strand || "-"}</p>
+                  <p className="font-medium text-foreground">{selectedRecord.sub_strand?.strand?.name}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-xs text-muted-foreground">Sub-Strand</p>
+                  <p className="font-medium text-foreground">{selectedRecord.sub_strand?.name}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Score</p>
-                  <p className="font-medium text-foreground">{selectedAssessment.score ?? "-"}</p>
+                  <p className="text-xs text-muted-foreground">Term & Year</p>
+                  <p className="font-medium text-foreground">Term {selectedRecord.term}, {selectedRecord.year}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Term</p>
-                  <p className="font-medium text-foreground">{selectedAssessment.term}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Academic Year</p>
-                  <p className="font-medium text-foreground">{selectedAssessment.academic_year}</p>
+                  <p className="text-xs text-muted-foreground">Recorded By</p>
+                  <p className="font-medium text-foreground">Teacher</p>
                 </div>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Comments</p>
-                <p className="text-foreground">{selectedAssessment.comments || "No comments"}</p>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Recorded on{" "}
-                {selectedAssessment.created_at
-                  ? new Date(selectedAssessment.created_at).toLocaleDateString("en-KE", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })
-                  : "N/A"}
+              
+              <div className="border-t pt-3 space-y-2">
+                <div>
+                  <p className="text-xs text-muted-foreground font-semibold">Qualitative Notes / Performance Remarks</p>
+                  <p className="text-foreground mt-1 bg-muted/30 p-2.5 rounded-lg border border-border/20">{selectedRecord.qualitative_notes || "No remarks"}</p>
+                </div>
+                {selectedRecord.core_competency_notes && (
+                  <div>
+                    <p className="text-xs text-muted-foreground font-semibold">Core Competencies remarks</p>
+                    <p className="text-foreground mt-1 bg-muted/30 p-2.5 rounded-lg border border-border/20">{selectedRecord.core_competency_notes}</p>
+                  </div>
+                )}
+                {selectedRecord.values_notes && (
+                  <div>
+                    <p className="text-xs text-muted-foreground font-semibold">CBC Values remarks</p>
+                    <p className="text-foreground mt-1 bg-muted/30 p-2.5 rounded-lg border border-border/20">{selectedRecord.values_notes}</p>
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Search, Filter, Download, MoreHorizontal, Eye, Edit, Trash2, FileText, Loader2, ArrowLeftRight } from "lucide-react";
-import { NEMISExportButton } from "@/components/ui/ExportButtons";
+import { NEMISExportButton, KNECRegistrationExportButton } from "@/components/ui/ExportButtons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,10 +31,10 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
-import { useStudents, useUpdateStudentStatus, useDeleteStudent, Student } from "@/hooks/useStudents";
-import { AddStudentDialog } from "@/components/students/AddStudentDialog";
-import { StudentProfileDialog } from "@/components/students/StudentProfileDialog";
-import { EditStudentDialog } from "@/components/students/EditStudentDialog";
+import { useLearners, useUpdateLearnerStatus, useDeleteLearner, Learner } from "@/hooks/useLearners";
+import { AddLearnerDialog } from "@/components/learners/AddLearnerDialog";
+import { LearnerProfileDialog } from "@/components/learners/LearnerProfileDialog";
+import { EditLearnerDialog } from "@/components/learners/EditLearnerDialog";
 import { useSchoolScope } from "@/hooks/useSchoolScope";
 
 const statusColors = {
@@ -44,37 +44,37 @@ const statusColors = {
   suspended: "bg-destructive/10 text-destructive border-destructive/20",
 };
 
-export default function Students() {
+export default function Learners() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { allowedGrades, gradeBandLabel } = useSchoolScope();
   const [searchQuery, setSearchQuery] = useState("");
   const [gradeFilter, setGradeFilter] = useState("all");
-  const [viewStudent, setViewStudent] = useState<Student | null>(null);
-  const [editStudent, setEditStudent] = useState<Student | null>(null);
+  const [viewLearner, setViewLearner] = useState<Learner | null>(null);
+  const [editLearner, setEditLearner] = useState<Learner | null>(null);
   
-  const { data: students = [], isLoading, error } = useStudents();
-  const updateStudentStatus = useUpdateStudentStatus();
-  const deleteStudent = useDeleteStudent();
+  const { data: learners = [], isLoading, error } = useLearners();
+  const updateLearnerStatus = useUpdateLearnerStatus();
+  const deleteLearner = useDeleteLearner();
   
   const canWrite = user?.role === "admin";
   const canDelete = user?.role === "admin";
 
-  const filteredStudents = students.filter((student) => {
-    const matchesSearch = student.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      student.admission_number.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesGrade = gradeFilter === "all" || student.classes?.grade === gradeFilter;
+  const filteredLearners = learners.filter((learner) => {
+    const matchesSearch = learner.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      learner.admission_number.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesGrade = gradeFilter === "all" || learner.classes?.grade === gradeFilter;
     return matchesSearch && matchesGrade;
   });
-  const sortedStudents = useMemo(
+  const sortedLearners = useMemo(
     () =>
-      [...filteredStudents].sort((a, b) =>
+      [...filteredLearners].sort((a, b) =>
         a.admission_number.localeCompare(b.admission_number, undefined, {
           numeric: true,
           sensitivity: "base",
         })
       ),
-    [filteredStudents]
+    [filteredLearners]
   );
 
   return (
@@ -83,12 +83,13 @@ export default function Students() {
       <div className="page-header">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="page-title font-display">Students</h1>
-            <p className="page-subtitle">Manage student records and enrollment for {gradeBandLabel}</p>
+            <h1 className="page-title font-display">Learners</h1>
+            <p className="page-subtitle">Manage learner admissions and enrollment for {gradeBandLabel}</p>
           </div>
           <div className="flex items-center gap-2">
             {canWrite && <NEMISExportButton />}
-            {canWrite && <AddStudentDialog />}
+            {canWrite && <KNECRegistrationExportButton />}
+            {canWrite && <AddLearnerDialog />}
           </div>
         </div>
       </div>
@@ -138,7 +139,7 @@ export default function Students() {
         </div>
       </div>
 
-      {/* Students Table */}
+      {/* Learners Table */}
       <div className="data-table">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
@@ -146,11 +147,11 @@ export default function Students() {
           </div>
         ) : error ? (
           <div className="text-center py-12 text-destructive">
-            Failed to load students. Please try again.
+            Failed to load learners. Please try again.
           </div>
-        ) : filteredStudents.length === 0 ? (
+        ) : filteredLearners.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
-            {students.length === 0 ? "No students registered yet. Add your first student!" : "No students match your search."}
+            {learners.length === 0 ? "No learners registered yet. Add your first student!" : "No learners match your search."}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -161,7 +162,7 @@ export default function Students() {
                     Adm No.
                   </th>
                   <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
-                    Student Name
+                    Learner Name
                   </th>
                   <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
                     Assessment No.
@@ -187,38 +188,38 @@ export default function Students() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {sortedStudents.map((student) => {
-                  const parentNames = [student.parents?.full_name, student.secondary_parent?.full_name].filter(Boolean);
+                {sortedLearners.map((learner) => {
+                  const parentNames = [learner.parents?.full_name, learner.secondary_parent?.full_name].filter(Boolean);
                   return (
-                  <tr key={student.id} className="hover:bg-muted/30 transition-colors">
+                  <tr key={learner.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3">
-                      <span className="text-sm font-medium text-foreground">{student.admission_number}</span>
+                      <span className="text-sm font-medium text-foreground">{learner.admission_number}</span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
                           <span className="text-xs font-medium text-primary">
-                            {student.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                            {learner.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                           </span>
                         </div>
-                        <span className="text-sm font-medium text-foreground">{student.full_name}</span>
+                        <span className="text-sm font-medium text-foreground">{learner.full_name}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-sm text-muted-foreground">
-                        {student.assessment_number || "-"}
+                        {learner.assessment_number || "-"}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-sm text-muted-foreground capitalize">{student.gender}</span>
+                      <span className="text-sm text-muted-foreground capitalize">{learner.gender}</span>
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-sm text-foreground">
-                        {student.classes ? `${student.classes.grade} ${student.classes.stream}` : "-"}
+                        {learner.classes ? `${learner.classes.grade} ${learner.classes.stream}` : "-"}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-sm text-muted-foreground">{student.pathway || "-"}</span>
+                      <span className="text-sm text-muted-foreground">{learner.pathway || "-"}</span>
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-sm text-muted-foreground">
@@ -226,8 +227,8 @@ export default function Students() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <Badge variant="outline" className={statusColors[student.status as keyof typeof statusColors]}>
-                        {student.status}
+                      <Badge variant="outline" className={statusColors[learner.status as keyof typeof statusColors]}>
+                        {learner.status}
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -238,14 +239,14 @@ export default function Students() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem className="gap-2" onClick={() => setViewStudent(student)}>
+                          <DropdownMenuItem className="gap-2" onClick={() => setViewLearner(learner)}>
                             <Eye className="w-4 h-4" /> View Profile
                           </DropdownMenuItem>
                           <DropdownMenuItem className="gap-2" onClick={() => navigate("/reports")}>
                             <FileText className="w-4 h-4" /> View Report Card
                           </DropdownMenuItem>
                           {canWrite && (
-                            <DropdownMenuItem className="gap-2" onClick={() => setEditStudent(student)}>
+                            <DropdownMenuItem className="gap-2" onClick={() => setEditLearner(learner)}>
                               <Edit className="w-4 h-4" /> Edit
                             </DropdownMenuItem>
                           )}
@@ -254,7 +255,7 @@ export default function Students() {
                               <AlertDialogTrigger asChild>
                                 <DropdownMenuItem
                                   className="gap-2"
-                                  disabled={student.status === "transferred" || student.status === "completed"}
+                                  disabled={learner.status === "transferred" || learner.status === "completed"}
                                   onSelect={(event) => event.preventDefault()}
                                 >
                                   <ArrowLeftRight className="w-4 h-4" /> Transfer
@@ -264,22 +265,22 @@ export default function Students() {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Transfer student?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    This marks {student.full_name} as transferred and removes their class assignment.
+                                    This marks {learner.full_name} as transferred and removes their class assignment.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                                   <AlertDialogAction
                                     onClick={() =>
-                                      updateStudentStatus.mutate({
-                                        studentIds: [student.id],
+                                      updateLearnerStatus.mutate({
+                                        learnerIds: [learner.id],
                                         status: "transferred",
                                         clearClass: true,
                                       })
                                     }
-                                    disabled={updateStudentStatus.isPending}
+                                    disabled={updateLearnerStatus.isPending}
                                   >
-                                    {updateStudentStatus.isPending ? "Transferring..." : "Transfer"}
+                                    {updateLearnerStatus.isPending ? "Transferring..." : "Transfer"}
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
@@ -299,16 +300,16 @@ export default function Students() {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>Delete student?</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    This permanently deletes {student.full_name} and their related records.
+                                    This permanently deletes {learner.full_name} and their related records.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                                   <AlertDialogAction
-                                    onClick={() => deleteStudent.mutate(student.id)}
-                                    disabled={deleteStudent.isPending}
+                                    onClick={() => deleteLearner.mutate(learner.id)}
+                                    disabled={deleteLearner.isPending}
                                   >
-                                    {deleteStudent.isPending ? "Deleting..." : "Delete"}
+                                    {deleteLearner.isPending ? "Deleting..." : "Delete"}
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
@@ -328,28 +329,28 @@ export default function Students() {
         {/* Pagination */}
         <div className="flex items-center justify-between px-4 py-3 border-t border-border">
           <p className="text-sm text-muted-foreground">
-            Showing {filteredStudents.length} of {students.length} students
+            Showing {filteredLearners.length} of {learners.length} learners
           </p>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" disabled>
               Previous
             </Button>
-            <Button variant="outline" size="sm" disabled={filteredStudents.length <= 10}>
+            <Button variant="outline" size="sm" disabled={filteredLearners.length <= 10}>
               Next
             </Button>
           </div>
         </div>
       </div>
 
-      <StudentProfileDialog
-        student={viewStudent}
-        open={!!viewStudent}
-        onOpenChange={(open) => !open && setViewStudent(null)}
+      <LearnerProfileDialog
+        learner={viewLearner}
+        open={!!viewLearner}
+        onOpenChange={(open) => !open && setViewLearner(null)}
       />
-      <EditStudentDialog
-        student={editStudent}
-        open={!!editStudent}
-        onOpenChange={(open) => !open && setEditStudent(null)}
+      <EditLearnerDialog
+        learner={editLearner}
+        open={!!editLearner}
+        onOpenChange={(open) => !open && setEditLearner(null)}
       />
     </DashboardLayout>
   );

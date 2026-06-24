@@ -95,7 +95,7 @@ export function DataIngestionDropzone({ onSuccess, className }: DataIngestionDro
 
             if (upiNumbers.length > 0) {
               const { data: studentsByUpi } = await supabase
-                .from("students")
+                .from("learners")
                 .select("id, upi_number")
                 .in("upi_number", upiNumbers);
 
@@ -106,7 +106,7 @@ export function DataIngestionDropzone({ onSuccess, className }: DataIngestionDro
 
             if (assessmentNumbers.length > 0) {
               const { data: studentsByAssessment } = await supabase
-                .from("students")
+                .from("learners")
                 .select("id, assessment_number")
                 .in("assessment_number", assessmentNumbers);
 
@@ -120,7 +120,7 @@ export function DataIngestionDropzone({ onSuccess, className }: DataIngestionDro
             // Get class IDs for the students
             const studentIdArray = Array.from(studentIds.values());
             const { data: studentClasses } = await supabase
-              .from("students")
+              .from("learners")
               .select("id, class_id")
               .in("id", studentIdArray);
 
@@ -148,7 +148,7 @@ export function DataIngestionDropzone({ onSuccess, className }: DataIngestionDro
                 const classId = classIdMap.get(studentId)!;
 
                 return {
-                  student_id: studentId,
+                  learner_id: studentId,
                   class_id: classId,
                   learning_area: record.learning_area,
                   assessment_type: record.assessment_type || "Summative",

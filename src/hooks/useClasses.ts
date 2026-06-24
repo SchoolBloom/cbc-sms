@@ -44,7 +44,7 @@ export function useClassesWithStudentCount() {
 
       // Get student counts
       const { data: students, error: studentsError } = await supabase
-        .from("students")
+        .from("learners")
         .select("class_id")
         .eq("status", "active");
       

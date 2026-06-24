@@ -3,68 +3,53 @@ import {
   LayoutDashboard,
   Users,
   GraduationCap,
-  BookOpenCheck,
   ClipboardCheck,
-  FileText,
-  CreditCard,
-  Library,
-  Bell,
   Settings,
   LogOut,
   BookOpen,
-  UserCheck,
   UserRound,
-  Calendar,
   Network,
-  Clock,
+  Route,
+  FileText,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, type AppRole } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 interface NavItem {
   name: string;
   href: string;
   icon: typeof LayoutDashboard;
-  roles: ("admin" | "teacher" | "parent" | "bursar" | "librarian" | "system_admin")[];
+  roles: AppRole[];
 }
 
 const navigationItems: NavItem[] = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["admin", "teacher", "parent", "bursar", "librarian", "system_admin"] },
-  { name: "Library", href: "/library", icon: Library, roles: ["admin", "teacher", "parent", "librarian"] },
-  { name: "Students", href: "/students", icon: Users, roles: ["admin"] },
+  { name: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["admin", "teacher", "parent", "system_admin"] },
+  { name: "Schools", href: "/platform/schools", icon: Network, roles: ["system_admin"] },
+  { name: "Learners", href: "/learners", icon: Users, roles: ["admin"] },
   { name: "Classes", href: "/classes", icon: GraduationCap, roles: ["admin", "teacher"] },
-  { name: "Assignments", href: "/assignments", icon: BookOpenCheck, roles: ["admin"] },
-  { name: "Attendance", href: "/attendance", icon: UserCheck, roles: ["admin", "teacher", "parent"] },
+  { name: "SBA Tasks", href: "/sba-tasks", icon: FileText, roles: ["admin", "teacher"] },
   { name: "Assessments", href: "/assessments", icon: ClipboardCheck, roles: ["admin", "teacher", "parent"] },
-  { name: "Reports", href: "/reports", icon: FileText, roles: ["admin", "teacher", "parent", "bursar"] },
-  { name: "Fees", href: "/fees", icon: CreditCard, roles: ["admin", "parent", "bursar"] },
-  { name: "Parents", href: "/parents", icon: BookOpen, roles: ["admin", "teacher", "bursar"] },
   { name: "Teachers", href: "/teachers", icon: UserRound, roles: ["admin"] },
-  { name: "Notices", href: "/notices", icon: Bell, roles: ["admin", "teacher", "parent"] },
-  { name: "Calendar", href: "/calendar", icon: Calendar, roles: ["admin", "teacher", "parent", "bursar"] },
-  { name: "Timetable", href: "/timetable", icon: Clock, roles: ["admin", "teacher"] },
+  { name: "Parents", href: "/parents", icon: BookOpen, roles: ["admin"] },
+  { name: "Pathways", href: "/pathways", icon: Route, roles: ["admin", "parent"] },
 ];
 
 const bottomItems: NavItem[] = [
-  { name: "Settings", href: "/settings", icon: Settings, roles: ["admin", "teacher", "parent", "bursar", "librarian", "system_admin"] },
+  { name: "Settings", href: "/settings", icon: Settings, roles: ["admin", "teacher", "parent", "system_admin"] },
 ];
 
 const roleLabels: Record<string, string> = {
-  admin: "Administrator",
+  admin: "School Administrator",
   teacher: "Teacher",
   parent: "Parent",
-  bursar: "Bursar",
-  librarian: "Librarian",
-  system_admin: "System Admin",
+  system_admin: "Super Admin",
 };
 
 const roleColors: Record<string, string> = {
   admin: "bg-primary text-primary-foreground",
   teacher: "bg-success text-success-foreground",
   parent: "bg-accent text-accent-foreground",
-  bursar: "bg-info text-info-foreground",
-  librarian: "bg-secondary text-secondary-foreground",
   system_admin: "bg-warning text-warning-foreground",
 };
 
@@ -103,9 +88,9 @@ export function AppSidebarContent({ onNavigate }: AppSidebarContentProps) {
           )}
         </div>
         <div>
-          <h1 className="font-display font-bold text-lg text-sidebar-foreground">School Bloom</h1>
+          <h1 className="font-display font-bold text-lg text-sidebar-foreground">SchoolBloom</h1>
           <p className="text-xs text-sidebar-foreground/60">
-            {userRole === "system_admin" ? "Platform Console" : "School Management"}
+            {userRole === "system_admin" ? "Platform Console" : "SchoolBloom Portal"}
           </p>
         </div>
       </div>

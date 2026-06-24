@@ -34,7 +34,7 @@ import { useSchoolScope } from "@/hooks/useSchoolScope";
 import { filterSubjectsByPathway, getSubjectsForPathway, validateSubjectPathway } from "@/lib/pathwaySubjects";
 import { toast } from "sonner";
 
-export default function Assignments() {
+export default function SBATasks() {
   const { categories, supportsPrimaryJunior, supportsSenior, gradeBandLabel } = useSchoolScope();
   const [selectedSubjectId, setSelectedSubjectId] = useState("");
   const [selectedClassId, setSelectedClassId] = useState("");
@@ -85,7 +85,7 @@ export default function Assignments() {
     queryFn: async () => {
       if (!selectedClassId) return [];
       const { data, error } = await supabase
-        .from("students")
+        .from("learners")
         .select("id, senior_pathway")
         .eq("class_id", selectedClassId)
         .not("senior_pathway", "is", null);
@@ -182,7 +182,7 @@ export default function Assignments() {
     <DashboardLayout>
       <div className="page-header">
         <div>
-          <h1 className="page-title font-display">Assignments</h1>
+          <h1 className="page-title font-display">SBA Tasks</h1>
           <p className="page-subtitle">Assign learning areas to classes and teachers for {gradeBandLabel}</p>
         </div>
       </div>
@@ -305,7 +305,7 @@ export default function Assignments() {
         <div className="space-y-6">
           <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
             <div className="px-5 py-4 border-b border-border">
-              <h3 className="font-display font-semibold text-foreground">Assignments</h3>
+              <h3 className="font-display font-semibold text-foreground">SBA Tasks</h3>
             </div>
             {assignmentsLoading ? (
               <div className="flex items-center justify-center py-10 text-muted-foreground">
@@ -313,7 +313,7 @@ export default function Assignments() {
               </div>
             ) : assignments.length === 0 ? (
               <div className="py-10 text-center text-muted-foreground">
-                No assignments yet.
+                No SBA Tasks created yet.
               </div>
             ) : (
               <div className="divide-y divide-border">

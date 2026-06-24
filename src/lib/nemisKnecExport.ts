@@ -24,7 +24,7 @@ export async function fetchStudentsForNEMISExport(
   supabase: SupabaseClient<Database>
 ): Promise<NEMISStudentRecord[]> {
   const { data: students, error } = await supabase
-    .from("students")
+    .from("learners")
     .select(`
       admission_number,
       full_name,
@@ -134,7 +134,7 @@ export async function fetchAssessmentsForKNECExport(
       score,
       core_competency_notes,
       values_notes,
-      student:students (
+      learner:learners (
         upi_number,
         assessment_number
       ),
@@ -147,10 +147,10 @@ export async function fetchAssessmentsForKNECExport(
   if (error) throw error;
 
   return (assessments || [])
-    .filter((a) => a.student?.upi_number)
+    .filter((a) => a.learner?.upi_number)
     .map((assessment) => ({
-      upi_number: assessment.student?.upi_number || "",
-      assessment_number: assessment.student?.assessment_number || "",
+      upi_number: assessment.learner?.upi_number || "",
+      assessment_number: assessment.learner?.assessment_number || "",
       grade: assessment.class?.grade || grade,
       term: assessment.term,
       academic_year: assessment.academic_year,
@@ -190,6 +190,83 @@ export function downloadKNECExport(records: KNECAssessmentRecord[], grade: strin
   
   link.setAttribute("href", url);
   link.setAttribute("download", filename || `knec_cba_grade_${grade}_${new Date().toISOString().split("T")[0]}.csv`);
+  link.style.visibility = "hidden";
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+/**
+ * KNEC Registration CSV format for students without assessment numbers
+ */
+export interface KNECLearnerRecord {
+  admission_number: string;
+  full_name: string;
+  date_of_birth: string;
+  gender: string;
+  birth_certificate_number: string;
+  upi_number: string;
+  grade: string;
+}
+
+/**
+ * Fetch learners without KNEC assessment numbers for KNEC registration
+ */
+export async function fetchLearnersForKNECExport(
+  supabase: SupabaseClient<Database>
+): Promise<KNECLearnerRecord[]> {
+  const { data: learners, error } = await supabase
+    .from("learners")
+    .select(`
+      admission_number,
+      full_name,
+      date_of_birth,
+      gender,
+      birth_certificate_number,
+      upi_number,
+      classes:class_id (grade)
+    `)
+    .is("assessment_number", null)
+    .not("birth_certificate_number", "is", null)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (learners || []).map((learner: any) => ({
+    admission_number: learner.admission_number,
+    full_name: learner.full_name,
+    date_of_birth: learner.date_of_birth,
+    gender: learner.gender === "male" ? "M" : "F",
+    birth_certificate_number: learner.birth_certificate_number || "",
+    upi_number: learner.upi_number || "",
+    grade: learner.classes?.grade || "",
+  }));
+}
+
+/**
+ * Download KNEC registration CSV
+ */
+export function downloadKNECRegistrationExport(records: KNECLearnerRecord[], filename?: string): void {
+  const csv = Papa.unparse(records, {
+    columns: [
+      "admission_number",
+      "full_name",
+      "date_of_birth",
+      "gender",
+      "birth_certificate_number",
+      "upi_number",
+      "grade",
+    ],
+    header: true,
+  });
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  
+  link.setAttribute("href", url);
+  link.setAttribute("download", filename || `knec_registration_${new Date().toISOString().split("T")[0]}.csv`);
   link.style.visibility = "hidden";
   
   document.body.appendChild(link);

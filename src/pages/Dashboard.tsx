@@ -1,97 +1,78 @@
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { QuickActions } from "@/components/dashboard/QuickActions";
-import { AttendanceChart } from "@/components/dashboard/AttendanceChart";
-import {
-  Users,
-  GraduationCap,
-  CreditCard,
-  TrendingUp,
-  BookOpen,
-  ClipboardCheck,
-  Bell,
-  Calendar,
-  Building2,
-  ServerCog,
-  ShieldCheck,
-} from "lucide-react";
+import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { useRole } from "@/contexts/RoleContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useStudentFees, formatCurrency } from "@/hooks/useFees";
-import { useStudentAssessments } from "@/hooks/useAssessments";
-import { useStudentAttendanceHistory } from "@/hooks/useAttendance";
-import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useSchoolScope } from "@/hooks/useSchoolScope";
-import { cn } from "@/lib/utils";
+import { useStudentAssessmentRecords } from "@/hooks/useAssessments";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Users, GraduationCap, TrendingUp, BookOpen, Route, ServerCog, ShieldCheck, FileText } from "lucide-react";
 
 export default function Dashboard() {
   const { user, selectedChildId, setSelectedChildId } = useRole();
   const { session } = useAuth();
   const { data: academicYear } = useAcademicYear();
   const { schoolName } = useSchoolScope();
-  const selectedChild = user.children?.find((child) => child.id === selectedChildId);
+  
+  const currentAcademicYear = academicYear?.label || new Date().getFullYear().toString();
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3001";
+
+  const selectedChild = user?.children?.find((child) => child.id === selectedChildId);
   const childInitials = selectedChild?.full_name
     ? selectedChild.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2)
     : "??";
-  const today = new Date().toISOString().split("T")[0];
-  const weekStart = new Date();
-  weekStart.setDate(weekStart.getDate() - 6);
-  const weekStartDate = weekStart.toISOString().split("T")[0];
-  const assessmentWeekStart = new Date();
-  assessmentWeekStart.setDate(assessmentWeekStart.getDate() - 7);
-  const assessmentWeekDate = assessmentWeekStart.toISOString();
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
+  // Time range calculation for teacher query (e.g. past week)
+  const assessmentWeekDate = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString();
+  }, []);
+
+  // ================= SYSTEM ADMIN / PLATFORM QUERIES =================
   const { data: systemSummary } = useQuery({
     queryKey: ["system-admin-summary"],
     queryFn: async () => {
       if (!session?.access_token) throw new Error("Missing session.");
       const response = await fetch(`${apiUrl}/api/system/summary`, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.error || "Failed to load system summary.");
-      }
+      if (!response.ok) throw new Error("Failed to load system summary.");
       return response.json();
     },
-    enabled: user.role === "system_admin" && Boolean(session?.access_token),
+    enabled: user?.role === "system_admin" && Boolean(session?.access_token),
   });
 
-  const { data: apiHealth = { ok: false, timestamp: null as string | null } } = useQuery({
-    queryKey: ["system-admin-api-health", apiUrl],
-    queryFn: async () => {
-      const response = await fetch(`${apiUrl}/api/health`);
-      if (!response.ok) {
-        throw new Error("Failed to reach API health endpoint.");
-      }
-      const payload = await response.json();
-      return {
-        ok: Boolean(payload.ok),
-        timestamp: payload.timestamp || null,
-      };
-    },
-    enabled: user.role === "system_admin",
-    retry: 0,
-  });
-
-  const { data: studentCount = 0 } = useQuery({
-    queryKey: ["dashboard-student-count", user.role],
+  const { data: globalLearnersCount = 0 } = useQuery({
+    queryKey: ["system-global-learners"],
     queryFn: async () => {
       const { count, error } = await supabase
-        .from("students")
+        .from("learners")
         .select("id", { count: "exact", head: true });
       if (error) throw error;
       return count || 0;
     },
-    enabled: user.role === "admin" || user.role === "bursar",
+    enabled: user?.role === "system_admin",
+  });
+
+  // ================= SCHOOL ADMIN QUERIES =================
+  const { data: studentCount = 0 } = useQuery({
+    queryKey: ["dashboard-student-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("learners")
+        .select("id", { count: "exact", head: true });
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: user?.role === "admin",
   });
 
   const { data: classCount = 0 } = useQuery({
@@ -103,70 +84,50 @@ export default function Dashboard() {
       if (error) throw error;
       return count || 0;
     },
-    enabled: user.role === "admin",
+    enabled: user?.role === "admin",
   });
 
-  const { data: feeSummary = { totalExpected: 0, totalCollected: 0, totalBalance: 0, collectionRate: 0 } } = useQuery({
-    queryKey: ["dashboard-fee-summary"],
+  const { data: teacherCount = 0 } = useQuery({
+    queryKey: ["dashboard-teacher-count"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("fees")
-        .select("amount, paid_amount");
-
+      const { count, error } = await supabase
+        .from("teachers")
+        .select("id", { count: "exact", head: true });
       if (error) throw error;
-
-      const totalExpected = (data || []).reduce((sum, fee) => sum + Number(fee.amount), 0);
-      const totalCollected = (data || []).reduce((sum, fee) => sum + Number(fee.paid_amount || 0), 0);
-      const totalBalance = totalExpected - totalCollected;
-      const collectionRate = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0;
-
-      return { totalExpected, totalCollected, totalBalance, collectionRate };
+      return count || 0;
     },
-    enabled: user.role === "admin" || user.role === "bursar",
+    enabled: user?.role === "admin",
   });
 
-  const { data: assessments = [] } = useQuery({
-    queryKey: ["dashboard-assessments"],
+  const { data: parentCount = 0 } = useQuery({
+    queryKey: ["dashboard-parent-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("parents")
+        .select("id", { count: "exact", head: true });
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: user?.role === "admin",
+  });
+
+  const { data: allAssessments = [] } = useQuery({
+    queryKey: ["dashboard-admin-assessments"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("assessments")
-        .select("performance_level");
+        .from("assessment_records")
+        .select("rubric_score");
       if (error) throw error;
       return data || [];
     },
-    enabled: user.role === "admin",
-  });
-  const { data: studentFees = [] } = useStudentFees(
-    user.role === "parent" ? selectedChildId || undefined : undefined
-  );
-  const { data: studentAssessments = [] } = useStudentAssessments(
-    user.role === "parent" ? selectedChildId || undefined : undefined
-  );
-  const { data: attendanceHistory = [] } = useStudentAttendanceHistory(
-    user.role === "parent" ? selectedChildId || undefined : undefined
-  );
-
-  const { data: adminAttendanceRate = 0 } = useQuery({
-    queryKey: ["admin-attendance-rate", weekStartDate],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("attendance")
-        .select("status")
-        .gte("date", weekStartDate);
-
-      if (error) throw error;
-      if (!data || data.length === 0) return 0;
-
-      const presentCount = data.filter((record) => record.status !== "absent").length;
-      return Math.round((presentCount / data.length) * 100);
-    },
-    enabled: user.role === "admin",
+    enabled: user?.role === "admin",
   });
 
+  // ================= TEACHER QUERIES =================
   const { data: teacherClasses = [] } = useQuery({
-    queryKey: ["teacher-classes", user.id],
+    queryKey: ["teacher-classes", user?.id],
     queryFn: async () => {
-      if (user.role !== "teacher") return [];
+      if (user?.role !== "teacher") return [];
       const { data, error } = await supabase
         .from("classes")
         .select("id, grade, stream, teacher_id")
@@ -176,1041 +137,500 @@ export default function Dashboard() {
       if (error) throw error;
       return data || [];
     },
-    enabled: user.role === "teacher",
+    enabled: user?.role === "teacher",
   });
 
-  const teacherClassIds = teacherClasses.map((cls) => cls.id);
-  const teacherClassLabels = teacherClasses.map((cls) => `${cls.grade}${cls.stream}`);
+  const teacherClassIds = useMemo(() => teacherClasses.map((cls) => cls.id), [teacherClasses]);
+  const teacherClassLabels = useMemo(() => teacherClasses.map((cls) => `${cls.grade} ${cls.stream}`), [teacherClasses]);
 
   const { data: teacherStudentsCount = 0 } = useQuery({
     queryKey: ["teacher-student-count", teacherClassIds],
     queryFn: async () => {
       if (!teacherClassIds.length) return 0;
       const { count, error } = await supabase
-        .from("students")
+        .from("learners")
         .select("id", { count: "exact", head: true })
         .in("class_id", teacherClassIds)
         .eq("status", "active");
       if (error) throw error;
       return count || 0;
     },
-    enabled: user.role === "teacher",
-  });
-
-  const { data: teacherAttendanceRate = 0 } = useQuery({
-    queryKey: ["teacher-attendance-rate", teacherClassIds, today],
-    queryFn: async () => {
-      if (!teacherClassIds.length) return 0;
-      const { data, error } = await supabase
-        .from("attendance")
-        .select("status")
-        .in("class_id", teacherClassIds)
-        .eq("date", today);
-      if (error) throw error;
-      if (!data || data.length === 0) return 0;
-      const presentCount = data.filter((record) => record.status !== "absent").length;
-      return Math.round((presentCount / data.length) * 100);
-    },
-    enabled: user.role === "teacher",
+    enabled: user?.role === "teacher" && teacherClassIds.length > 0,
   });
 
   const { data: teacherAssessmentsWeek = 0 } = useQuery({
     queryKey: ["teacher-assessments-week", teacherClassIds, assessmentWeekDate],
     queryFn: async () => {
       if (!teacherClassIds.length) return 0;
+      const { data: learnerIdsData, error: learnerError } = await supabase
+        .from("learners")
+        .select("id")
+        .in("class_id", teacherClassIds);
+      if (learnerError) throw learnerError;
+      const learnerIds = (learnerIdsData || []).map((l) => l.id);
+      if (learnerIds.length === 0) return 0;
+
       const { count, error } = await supabase
-        .from("assessments")
+        .from("assessment_records")
         .select("id", { count: "exact", head: true })
-        .in("class_id", teacherClassIds)
+        .in("learner_id", learnerIds)
         .gte("created_at", assessmentWeekDate);
       if (error) throw error;
       return count || 0;
     },
-    enabled: user.role === "teacher",
+    enabled: user?.role === "teacher" && teacherClassIds.length > 0,
   });
 
-  const { data: parentNoticesCount = 0 } = useQuery({
-    queryKey: ["parent-notices", user.role],
-    queryFn: async () => {
-      if (user.role !== "parent") return 0;
-      const { count, error } = await supabase
-        .from("notices")
-        .select("id", { count: "exact", head: true })
-        .eq("published", true)
-        .overlaps("target_audience", ["parents", "all"]);
-      if (error) throw error;
-      return count || 0;
-    },
-    enabled: user.role === "parent",
-  });
-
-  const { data: parentNotices = [] } = useQuery({
-    queryKey: ["parent-notices-list", user.role],
-    queryFn: async () => {
-      if (user.role !== "parent") return [];
-      const { data, error } = await supabase
-        .from("notices")
-        .select("id, title, published_at, created_at")
-        .eq("published", true)
-        .overlaps("target_audience", ["parents", "all"])
-        .order("published_at", { ascending: false })
-        .limit(3);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: user.role === "parent",
-  });
-
-  const { data: bursarRecentPayments = [] } = useQuery({
-    queryKey: ["bursar-recent-payments"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("fees")
-        .select("id, paid_amount, payment_method, payment_date, student:students(full_name, class:classes(grade, stream))")
-        .not("payment_date", "is", null)
-        .order("payment_date", { ascending: false })
-        .limit(4);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: user.role === "bursar",
-  });
-
-  const { data: bursarBalances = [] } = useQuery({
-    queryKey: ["bursar-high-balances"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("fees")
-        .select("id, amount, paid_amount, student:students(full_name, class:classes(grade, stream))")
-        .not("status", "eq", "paid");
-      if (error) throw error;
-      const rows = (data || []).map((fee) => ({
-        ...fee,
-        balance: Number(fee.amount) - Number(fee.paid_amount || 0),
-      }));
-      return rows.sort((a, b) => b.balance - a.balance).slice(0, 3);
-    },
-    enabled: user.role === "bursar",
-  });
-
-  const { data: bursarTodayReceipts = { total: 0, count: 0 } } = useQuery({
-    queryKey: ["bursar-today-receipts", today],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("fees")
-        .select("paid_amount")
-        .eq("payment_date", today);
-      if (error) throw error;
-      const total = (data || []).reduce((sum, fee) => sum + Number(fee.paid_amount || 0), 0);
-      return { total, count: data?.length || 0 };
-    },
-    enabled: user.role === "bursar",
-  });
-
-  const { data: bursarByGrade = [] } = useQuery({
-    queryKey: ["bursar-collection-grade"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("fees")
-        .select("amount, paid_amount, student:students(class:classes(grade, stream))");
-      if (error) throw error;
-
-      const gradeMap = new Map<string, { expected: number; collected: number }>();
-      (data || []).forEach((fee) => {
-        const grade = fee.student?.class?.grade || "Unknown";
-        const bucket = gradeMap.get(grade) || { expected: 0, collected: 0 };
-        bucket.expected += Number(fee.amount);
-        bucket.collected += Number(fee.paid_amount || 0);
-        gradeMap.set(grade, bucket);
-      });
-
-      return Array.from(gradeMap.entries())
-        .map(([grade, stats]) => ({ grade, ...stats }))
-        .sort((a, b) => a.grade.localeCompare(b.grade));
-    },
-    enabled: user.role === "bursar",
-  });
-
-  const attendanceRate = attendanceHistory.length
-    ? Math.round(
-        (attendanceHistory.filter((a) => a.status !== "absent").length / attendanceHistory.length) * 100
-      )
-    : 0;
-  const totalFee = studentFees.reduce((sum, fee) => sum + Number(fee.amount), 0);
-  const totalPaid = studentFees.reduce((sum, fee) => sum + Number(fee.paid_amount || 0), 0);
-  const balance = totalFee - totalPaid;
-  const balanceStatus = balance < 0 ? "excess" : balance > 0 ? "underpaid" : "settled";
-  const balanceValueClass =
-    balanceStatus === "excess"
-      ? "text-success"
-      : balanceStatus === "underpaid"
-        ? "text-destructive"
-        : "text-foreground";
-
-  const latestBySubject = studentAssessments.reduce((acc, assessment) => {
-    const existing = acc[assessment.learning_area];
-    if (!existing || new Date(assessment.created_at) > new Date(existing.created_at)) {
-      acc[assessment.learning_area] = assessment;
-    }
-    return acc;
-  }, {} as Record<string, (typeof studentAssessments)[number]>);
-
-  const latestPerformance = Object.values(latestBySubject)[0]?.performance_level || "N/A";
-
-  const performanceBreakdown = assessments.reduce(
-    (acc, assessment) => {
-      const value = String(assessment.performance_level || "").toLowerCase();
-      if (value === "exceeds" || value === "ee") acc.exceeds += 1;
-      else if (value === "meets" || value === "me") acc.meets += 1;
-      else if (value === "approaches" || value === "ae") acc.approaches += 1;
-      else if (value === "below" || value === "be") acc.below += 1;
-      return acc;
-    },
-    { exceeds: 0, meets: 0, approaches: 0, below: 0 }
+  // ================= PARENT QUERIES =================
+  const { data: parentAssessments = [] } = useStudentAssessmentRecords(
+    user?.role === "parent" ? selectedChildId || undefined : undefined
   );
-  const performanceTotal =
-    performanceBreakdown.exceeds +
-    performanceBreakdown.meets +
-    performanceBreakdown.approaches +
-    performanceBreakdown.below;
-  const performancePercent = (count: number) =>
-    performanceTotal > 0 ? Math.round((count / performanceTotal) * 100) : 0;
-  const systemSchools = systemSummary?.schools || [];
-  const totalSignups = systemSummary?.metrics?.totalSignups || 0;
-  const assignedRoles = systemSummary?.metrics?.assignedRoles || 0;
-  const systemActiveSchools = systemSummary?.metrics?.activeSchools || 0;
-  const systemOnboardingSchools = systemSummary?.metrics?.onboardingSchools || 0;
-  const schoolsWithBasic = systemSummary?.metrics?.schoolsWithBasic || 0;
-  const schoolsWithSenior = systemSummary?.metrics?.schoolsWithSenior || 0;
-  const schoolsWithBoth = systemSummary?.metrics?.schoolsWithBoth || 0;
-  const roleBreakdown = (systemSummary?.metrics?.roleBreakdown || {}) as Record<string, number>;
-  const signupSeries = systemSummary?.signupSeries || [];
-  const systemRoleSummary = [
-    `${roleBreakdown.admin || 0} school admins`,
-    `${roleBreakdown.teacher || 0} teachers`,
-    `${roleBreakdown.parent || 0} parents`,
-    `${roleBreakdown.bursar || 0} bursars`,
-    `${roleBreakdown.librarian || 0} librarians`,
-  ].join(" • ");
 
-  const { data: totalLibrarians = 0 } = useQuery({
-    queryKey: ["system-admin-librarians"],
+  const { data: parentPathwayAllocation = null } = useQuery({
+    queryKey: ["parent-pathway-alloc", selectedChildId],
     queryFn: async () => {
-      if (!session?.access_token) throw new Error("Missing session.");
-      const response = await fetch(`${apiUrl}/api/system/librarians-count`, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.error || "Failed to load librarian count.");
-      }
-      const data = await response.json();
-      return data.count || 0;
+      if (!selectedChildId) return null;
+      const { data, error } = await supabase
+        .from("pathway_allocations")
+        .select("*")
+        .eq("learner_id", selectedChildId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
     },
-    enabled: user.role === "system_admin" && Boolean(session?.access_token),
+    enabled: user?.role === "parent" && !!selectedChildId,
   });
 
-  const { data: totalStudents = 0 } = useQuery({
-    queryKey: ["system-admin-students"],
-    queryFn: async () => {
-      if (!session?.access_token) throw new Error("Missing session.");
-      const response = await fetch(`${apiUrl}/api/system/students-count`, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.error || "Failed to load student count.");
-      }
-      const data = await response.json();
-      return data.count || 0;
-    },
-    enabled: user.role === "system_admin" && Boolean(session?.access_token),
-  });
+  // Performance calculations for school admin view
+  const performanceStats = useMemo(() => {
+    const breakdown = { exceeds: 0, meets: 0, approaches: 0, below: 0 };
+    allAssessments.forEach((record) => {
+      const val = String(record.rubric_score || "").toLowerCase();
+      if (val === "exceeds" || val === "ee") breakdown.exceeds += 1;
+      else if (val === "meets" || val === "me") breakdown.meets += 1;
+      else if (val === "approaches" || val === "ae") breakdown.approaches += 1;
+      else if (val === "below" || val === "be") breakdown.below += 1;
+    });
+    const total = breakdown.exceeds + breakdown.meets + breakdown.approaches + breakdown.below;
+    const percent = (count: number) => (total > 0 ? Math.round((count / total) * 100) : 0);
+    return { breakdown, total, percent };
+  }, [allAssessments]);
 
-  // Role-specific greeting
+  // Performance mapping for parent view (latest score per subject)
+  const latestBySubject = useMemo(() => {
+    return parentAssessments.reduce((acc, record) => {
+      const area = record.sub_strand?.strand?.learning_area || "Other";
+      if (!acc[area] || new Date(record.created_at) > new Date(acc[area].created_at)) {
+        acc[area] = record;
+      }
+      return acc;
+    }, {} as Record<string, typeof parentAssessments[0]>);
+  }, [parentAssessments]);
+
+  const latestPerformanceLabel = useMemo(() => {
+    const items = Object.values(latestBySubject);
+    if (items.length === 0) return "N/A";
+    return items[0].rubric_score || "N/A";
+  }, [latestBySubject]);
+
+  // Greetings and labels helper
   const getGreeting = () => {
     const hour = new Date().getHours();
     const timeGreeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-    return `${timeGreeting}, ${user.name.split(" ")[0]}`;
+    return `${timeGreeting}, ${user?.name?.split(" ")[0] || "User"}`;
   };
 
-  // Role-specific subtitle
   const getSubtitle = () => {
-    switch (user.role) {
+    switch (user?.role) {
+      case "system_admin":
+        return "Platform status console and onboarding dashboard.";
       case "admin":
-        return schoolName
-          ? `This is what is happening at ${schoolName} today.`
-          : "This is what is happening at your school today.";
+        return schoolName ? `Overview of school progress at ${schoolName}.` : "Overview of school progress today.";
       case "teacher":
         return teacherClassLabels.length > 0
-          ? `You have classes in ${teacherClassLabels.join(", ")} today.`
-          : "Your classes will appear here once assigned.";
+          ? `You teach in classes: ${teacherClassLabels.join(", ")}.`
+          : "SBA tools and student grade logs.";
       case "parent":
-        return "Stay updated on your child's progress and school activities.";
-      case "bursar":
-        return "Overview of fee collection and financial status.";
-      case "librarian":
-        return "Track issued books, overdue penalties, and lost-book cases.";
-      case "system_admin":
-        return "Platform overview across onboarded schools and user signups.";
+        return "Longitudinal progress tracker for your child's competency pathways.";
+      default:
+        return "Welcome to SchoolBloom.";
     }
   };
-
-  const termStart = academicYear
-    ? academicYear[`term${academicYear.current_term}_start` as const]
-    : null;
-  const termEnd = academicYear
-    ? academicYear[`term${academicYear.current_term}_end` as const]
-    : null;
-  const termLabel = academicYear
-    ? `Term ${academicYear.current_term}, ${academicYear.label}`
-    : "Term";
-  const weekLabel = (() => {
-    if (!termStart || !termEnd) return "Week -";
-    const start = new Date(termStart);
-    const end = new Date(termEnd);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return "Week -";
-    const totalDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1);
-    const totalWeeks = Math.ceil(totalDays / 7);
-    const daysSinceStart = Math.floor((new Date().getTime() - start.getTime()) / 86400000);
-    const currentWeek = Math.min(Math.max(Math.floor(daysSinceStart / 7) + 1, 1), totalWeeks);
-    return `Week ${currentWeek} of ${totalWeeks}`;
-  })();
 
   return (
     <DashboardLayout>
       {/* Header */}
-      <div className="page-header">
-        <div className="flex items-center justify-between">
+      <div className="page-header mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="page-title font-display">{getGreeting()}</h1>
             <p className="page-subtitle">{getSubtitle()}</p>
           </div>
           <div className="text-right">
-            {user.role === "system_admin" ? (
-              <>
-                <p className="text-sm font-medium text-foreground">Platform status</p>
-                <p className="text-xs text-muted-foreground">
-                  {apiHealth.ok ? "API responding normally" : "API health check unavailable"}
-                </p>
-              </>
-            ) : user.role === "admin" ? (
-              <>
-                <p className="text-sm font-medium text-foreground">{schoolName || "School"}</p>
-                <p className="text-xs text-muted-foreground">{termLabel} • {weekLabel}</p>
-              </>
-            ) : (
-              <>
-                <p className="text-sm font-medium text-foreground">{termLabel}</p>
-                <p className="text-xs text-muted-foreground">{weekLabel}</p>
-              </>
-            )}
+            <span className="text-sm font-semibold text-primary block">SchoolBloom Platform</span>
+            <span className="text-xs text-muted-foreground">Academic Year {currentAcademicYear}</span>
           </div>
         </div>
       </div>
 
-      {user.role === "system_admin" && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
+      {/* ================= SUPER ADMIN VIEW ================= */}
+      {user?.role === "system_admin" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <StatCard
-              title="Schools"
-              value={systemSchools.length}
-              subtitle={`${systemActiveSchools} active • ${schoolsWithBoth} with both categories`}
-              icon={Building2}
-            />
-            <StatCard
-              title="Total Students"
-              value={totalStudents}
-              subtitle="Across all schools"
+              title="Onboarded Schools"
+              value={systemSummary?.metrics?.totalSchools || 0}
+              subtitle="Active academic licenses"
               icon={GraduationCap}
               variant="primary"
             />
             <StatCard
-              title="Librarians"
-              value={totalLibrarians}
-              subtitle="Platform-wide"
-              icon={BookOpen}
-            />
-            <StatCard
-              title="System Signups"
-              value={totalSignups}
-              subtitle="Accounts created across the platform"
+              title="Global User Accounts"
+              value={systemSummary?.metrics?.totalSignups || 0}
+              subtitle="Provisioned users"
               icon={Users}
             />
             <StatCard
-              title="System Health"
-              value={apiHealth.ok ? "Healthy" : "Degraded"}
-              subtitle={
-                apiHealth.timestamp
-                  ? `Last check ${new Date(apiHealth.timestamp).toLocaleString("en-KE", {
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}`
-                  : "API endpoint not reached"
-              }
-              icon={ServerCog}
-              variant={apiHealth.ok ? "success" : "accent"}
+              title="Global Learners Registered"
+              value={globalLearnersCount}
+              subtitle="Enrolled students"
+              icon={BookOpen}
+              variant="success"
             />
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <div className="xl:col-span-2 space-y-6">
-              <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
-                <div className="px-5 py-4 border-b border-border">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="font-display font-semibold text-foreground">Schools Using School Bloom</h3>
-                      <p className="text-sm text-muted-foreground">Registered schools and the categories they serve.</p>
-                    </div>
-                    <Badge variant="outline">{systemSchools.length} schools</Badge>
-                  </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <ServerCog className="w-5 h-5 text-primary" />
+                System Onboarding Status
+              </CardTitle>
+              <CardDescription>
+                Summary of configuration profiles across primary, junior secondary, and senior secondary schools.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-4 bg-muted/40 rounded-xl">
+                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider block">Active Schools</span>
+                  <span className="text-2xl font-bold mt-1 block">{systemSummary?.metrics?.activeSchools || 0}</span>
                 </div>
-                <div className="divide-y divide-border">
-                  {systemSchools.length > 0 ? (
-                    systemSchools.map((school) => (
-                      <div key={school.id} className="px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <p className="font-medium text-foreground">{school.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {school.code}
-                            {(school.county || school.subcounty) &&
-                              ` • ${[school.subcounty, school.county].filter(Boolean).join(", ")}`}
-                          </p>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {(school.school_categories || []).map((category: string) => (
-                              <Badge key={category} variant="outline">
-                                {category === "primary_junior_secondary" ? "PP1 to Grade 9" : "Grade 10 to 12"}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "capitalize",
-                              school.status === "active" && "border-success/40 bg-success/10 text-success",
-                              school.status === "onboarding" && "border-warning/40 bg-warning/10 text-warning",
-                              school.status === "suspended" && "border-destructive/40 bg-destructive/10 text-destructive"
-                            )}
-                          >
-                            {school.status}
-                          </Badge>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(school.created_at).toLocaleDateString("en-KE", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            })}
-                          </p>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="px-5 py-8 text-sm text-muted-foreground">No schools have been registered yet.</div>
-                  )}
+                <div className="p-4 bg-muted/40 rounded-xl">
+                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider block">Onboarding Schools</span>
+                  <span className="text-2xl font-bold mt-1 block">{systemSummary?.metrics?.onboardingSchools || 0}</span>
+                </div>
+                <div className="p-4 bg-muted/40 rounded-xl">
+                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider block">Basic Education Only</span>
+                  <span className="text-2xl font-bold mt-1 block">{systemSummary?.metrics?.schoolsWithBasic || 0}</span>
+                </div>
+                <div className="p-4 bg-muted/40 rounded-xl">
+                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider block">Senior Secondary Capable</span>
+                  <span className="text-2xl font-bold mt-1 block">{systemSummary?.metrics?.schoolsWithSenior || 0}</span>
                 </div>
               </div>
-            </div>
-
-            <div className="space-y-6">
-              <div className="bg-card rounded-xl border border-border/50 p-5">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                    <ShieldCheck className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="font-display font-semibold text-foreground">Platform Snapshot</h3>
-                    <p className="text-sm text-muted-foreground">Role allocation and system readiness.</p>
-                  </div>
-                </div>
-                <div className="space-y-3 text-sm">
-                  {[
-                    { label: "PP1 to Grade 9 schools", value: schoolsWithBasic },
-                    { label: "Grade 10 to 12 schools", value: schoolsWithSenior },
-                    { label: "Schools with both", value: schoolsWithBoth },
-                    { label: "Total Students", value: totalStudents },
-                    { label: "System admins", value: roleBreakdown.system_admin || 0 },
-                    { label: "School admins", value: roleBreakdown.admin || 0 },
-                    { label: "Teachers", value: roleBreakdown.teacher || 0 },
-                    { label: "Parents", value: roleBreakdown.parent || 0 },
-                    { label: "Bursars", value: roleBreakdown.bursar || 0 },
-                    { label: "Librarians", value: totalLibrarians },
-                  ].map((item) => (
-                    <div key={item.label} className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2">
-                      <span className="text-muted-foreground">{item.label}</span>
-                      <span className="font-medium text-foreground">{item.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-card rounded-xl border border-border/50 p-5">
-                <h3 className="font-display font-semibold text-foreground mb-4">Signup Trend (Last 7 Days)</h3>
-                {signupSeries.length > 0 ? (
-                  <div className="flex items-end justify-between gap-2 h-32">
-                    {(() => {
-                      const maxCount = Math.max(...signupSeries.map((s: { count: number }) => s.count), 1);
-                      return signupSeries.map((item: { date: string; label: string; count: number }) => (
-                        <div key={item.date} className="flex flex-col items-center flex-1 gap-1">
-                          <span className="text-xs font-medium text-foreground">{item.count}</span>
-                          <div
-                            className="w-full bg-primary rounded-t transition-all"
-                            style={{ height: `${Math.max((item.count / maxCount) * 80, item.count > 0 ? 8 : 2)}px` }}
-                          />
-                          <span className="text-xs text-muted-foreground">{item.label}</span>
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No signup activity available yet.</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
-      {/* Admin Dashboard */}
-      {user.role === "admin" && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {/* ================= SCHOOL ADMIN VIEW ================= */}
+      {user?.role === "admin" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
-              title="Total Students"
+              title="Students"
               value={studentCount}
-              subtitle={`${classCount} classes`}
+              subtitle="Admitted and active"
               icon={Users}
-            />
-            <StatCard
-              title="Classes"
-              value={classCount}
-              subtitle="Across all grades"
-              icon={GraduationCap}
               variant="primary"
             />
             <StatCard
-              title="Fee Collection"
-              value={formatCurrency(feeSummary?.totalCollected || 0)}
-              subtitle={`Expected ${formatCurrency(feeSummary?.totalExpected || 0)}`}
-              icon={CreditCard}
+              title="Assigned Classes"
+              value={classCount}
+              subtitle="Registered streams"
+              icon={GraduationCap}
             />
             <StatCard
-              title="Attendance Rate"
-              value={`${adminAttendanceRate}%`}
-              subtitle="Last 7 days"
-              icon={TrendingUp}
+              title="Faculty Members"
+              value={teacherCount}
+              subtitle="Active teachers"
+              icon={ShieldCheck}
               variant="success"
+            />
+            <StatCard
+              title="Parents / Guardians"
+              value={parentCount}
+              subtitle="Registered households"
+              icon={Users}
             />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
-              <AttendanceChart />
-              <div className="bg-card rounded-xl border border-border/50 p-5">
-                <h3 className="font-display font-semibold text-foreground mb-4">CBC Performance Overview</h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center p-4 bg-success/10 rounded-xl">
-                    <p className="text-2xl font-bold text-success font-display">
-                      {performancePercent(performanceBreakdown.exceeds)}%
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">Exceeding Expectations</p>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold">CBC Performance Distribution</CardTitle>
+                  <CardDescription>
+                    Performance levels calculated across all recorded assessment rubrics.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center p-4 bg-success/10 rounded-xl">
+                      <p className="text-2xl font-bold text-success font-display">
+                        {performanceStats.percent(performanceStats.breakdown.exceeds)}%
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">Exceeding Expectations</p>
+                    </div>
+                    <div className="text-center p-4 bg-primary/10 rounded-xl">
+                      <p className="text-2xl font-bold text-primary font-display">
+                        {performanceStats.percent(performanceStats.breakdown.meets)}%
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">Meeting Expectations</p>
+                    </div>
+                    <div className="text-center p-4 bg-warning/10 rounded-xl">
+                      <p className="text-2xl font-bold text-warning font-display">
+                        {performanceStats.percent(performanceStats.breakdown.approaches)}%
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">Approaching Expectations</p>
+                    </div>
                   </div>
-                  <div className="text-center p-4 bg-primary/10 rounded-xl">
-                    <p className="text-2xl font-bold text-primary font-display">
-                      {performancePercent(performanceBreakdown.meets)}%
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">Meeting Expectations</p>
-                  </div>
-                  <div className="text-center p-4 bg-warning/10 rounded-xl">
-                    <p className="text-2xl font-bold text-warning font-display">
-                      {performancePercent(performanceBreakdown.approaches)}%
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">Approaching Expectations</p>
-                  </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             </div>
             <div className="space-y-6">
               <QuickActions />
               <RecentActivity role="admin" />
             </div>
           </div>
-        </>
+        </div>
       )}
 
-      {/* Teacher Dashboard */}
-      {user.role === "teacher" && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {/* ================= TEACHER VIEW ================= */}
+      {user?.role === "teacher" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <StatCard
-              title="My Classes"
+              title="My Assigned Classes"
               value={teacherClasses.length}
               subtitle={teacherClassLabels.join(", ") || "No classes assigned"}
               icon={GraduationCap}
               variant="primary"
             />
             <StatCard
-              title="Students"
+              title="Active Students"
               value={teacherStudentsCount}
-              subtitle="In your classes"
+              subtitle="Enrolled under your classes"
               icon={Users}
-            />
-            <StatCard
-              title="Today's Attendance"
-              value={`${teacherAttendanceRate}%`}
-              subtitle="Today"
-              icon={ClipboardCheck}
               variant="success"
             />
             <StatCard
-              title="Assessments"
+              title="Assessments Recorded"
               value={teacherAssessmentsWeek}
-              subtitle="Recorded this week"
+              subtitle="This week"
               icon={BookOpen}
             />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
-              {/* Today's Schedule */}
-              <div className="bg-card rounded-xl border border-border/50 p-5">
-                <h3 className="font-display font-semibold text-foreground mb-4">Today's Schedule</h3>
-                <div className="space-y-3">
-                  {teacherClassLabels.length > 0 ? (
-                    teacherClassLabels.map((label) => (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold">Today's Class Schedule</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {teacherClasses.length > 0 ? (
+                    teacherClasses.map((cls) => (
                       <div
-                        key={label}
-                        className="flex items-center justify-between p-3 rounded-lg border bg-muted/50 border-border/50"
+                        key={cls.id}
+                        className="flex items-center justify-between p-3.5 rounded-xl border bg-muted/30 border-border/50"
                       >
                         <div className="flex items-center gap-3">
-                          <span className="text-sm font-mono text-muted-foreground">Today</span>
-                          <span className="font-medium text-foreground">Class {label}</span>
-                          <Badge variant="outline">{label}</Badge>
+                          <div className="w-9.5 h-9.5 rounded-lg bg-primary/10 flex items-center justify-center font-bold text-primary text-xs">
+                            {cls.grade[0]}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-sm text-foreground">Grade {cls.grade} • {cls.stream}</p>
+                            <p className="text-xs text-muted-foreground">Subject instructions assigned</p>
+                          </div>
                         </div>
+                        <Badge variant="outline" className="text-xs">Active</Badge>
                       </div>
                     ))
                   ) : (
-                    <div
-                      className="flex items-center justify-between p-3 rounded-lg border bg-card border-border/50"
-                    >
-                      <span className="text-sm text-muted-foreground">No classes assigned yet.</span>
+                    <div className="py-6 text-center text-sm text-muted-foreground border border-dashed rounded-xl">
+                      No classes currently registered under your teaching profile.
                     </div>
                   )}
-                </div>
-              </div>
-              <AttendanceChart classIds={teacherClassIds} />
+                </CardContent>
+              </Card>
             </div>
             <div className="space-y-6">
-              <div className="bg-card rounded-xl border border-border/50 p-5">
-                <h3 className="font-display font-semibold text-foreground mb-4">Quick Actions</h3>
-                <div className="space-y-2">
-                  <button className="w-full flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-left">
-                    <ClipboardCheck className="w-5 h-5 text-primary" />
-                    <span className="text-sm font-medium">Take Attendance</span>
-                  </button>
-                  <button className="w-full flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-left">
-                    <BookOpen className="w-5 h-5 text-success" />
-                    <span className="text-sm font-medium">Record Assessment</span>
-                  </button>
-                  <button className="w-full flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-left">
-                    <Bell className="w-5 h-5 text-warning" />
-                    <span className="text-sm font-medium">View Notices</span>
-                  </button>
-                </div>
-              </div>
+              <QuickActions />
               <RecentActivity role="teacher" classIds={teacherClassIds} teacherId={user.id} />
             </div>
           </div>
-        </>
+        </div>
       )}
 
-      {/* Parent Dashboard */}
-      {user.role === "parent" && (
-        <>
-          {/* Child Info Card */}
-          <div className="bg-card rounded-xl border border-border/50 p-6 mb-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                  <span className="text-xl font-bold text-primary">{childInitials}</span>
-                </div>
-                <div className="flex-1">
-                  <h2 className="text-xl font-display font-semibold text-foreground">
-                    {selectedChild?.full_name || "Student record not linked"}
-                  </h2>
-                  <p className="text-muted-foreground">
-                    {selectedChild?.classes
-                      ? `${selectedChild.classes.grade} ${selectedChild.classes.stream}`
-                      : "Grade unavailable"}{" "}
-                    • Admission No: {selectedChild?.admission_number || "N/A"}
-                    • Assessment No: {selectedChild?.assessment_number || "N/A"}
-                  </p>
-                </div>
-                <Badge variant="outline" className="bg-success/10 text-success border-success/20">
-                  {selectedChild?.status || "Unknown"}
-                </Badge>
-              </div>
-              {user.children && user.children.length > 1 && (
-                <div className="w-full sm:w-64">
-                  <Select
-                    value={selectedChildId || ""}
-                    onValueChange={(value) => setSelectedChildId(value)}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select student" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {user.children.map((child) => (
-                        <SelectItem key={child.id} value={child.id}>
-                          {child.full_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatCard
-              title="Attendance"
-              value={`${attendanceRate}%`}
-              subtitle="Last 30 days"
-              icon={ClipboardCheck}
-              variant="success"
-            />
-            <StatCard
-              title="Performance"
-              value={latestPerformance}
-              subtitle="Latest assessment"
-              icon={TrendingUp}
-              variant="primary"
-            />
-            <StatCard
-              title="Fee Balance"
-              value={formatCurrency(balance)}
-              subtitle={
-                balanceStatus === "excess"
-                  ? "Excess credit"
-                  : balanceStatus === "underpaid"
-                    ? "Outstanding"
-                    : "Fully paid"
-              }
-              icon={CreditCard}
-              valueClassName={balanceValueClass}
-            />
-            <StatCard
-              title="Notices"
-              value={parentNoticesCount}
-              subtitle="Published"
-              icon={Bell}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-              {/* Recent Performance */}
-              <div className="bg-card rounded-xl border border-border/50 p-5">
-                <h3 className="font-display font-semibold text-foreground mb-4">Recent Performance</h3>
-                <div className="space-y-3">
-                  {Object.values(latestBySubject).length > 0 ? (
-                    Object.values(latestBySubject).slice(0, 4).map((result) => (
-                      <div key={result.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                        <span className="font-medium text-foreground">{result.learning_area}</span>
-                        <div className="flex items-center gap-2">
-                          <Badge className="bg-primary text-primary-foreground">
-                            {result.performance_level}
-                          </Badge>
-                          <span className="text-sm text-muted-foreground">
-                            {result.comments || "No comments"}
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No assessments recorded yet.</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Attendance History */}
-              <div className="bg-card rounded-xl border border-border/50 p-5">
-                <h3 className="font-display font-semibold text-foreground mb-4">This Week's Attendance</h3>
-                <div className="grid grid-cols-5 gap-2">
-                  {attendanceHistory.slice(0, 5).map((record) => (
-                    <div key={record.id} className="text-center">
-                      <p className="text-xs text-muted-foreground mb-2">
-                        {new Date(record.date).toLocaleDateString("en-KE", { weekday: "short" })}
+      {/* ================= PARENT VIEW ================= */}
+      {user?.role === "parent" && (
+        <div className="space-y-6">
+          {/* Child Selection Header */}
+          {!selectedChildId ? (
+            <Card className="border-dashed py-16 text-center">
+              <CardContent>
+                <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="font-semibold text-lg">No Linked Children Found</h3>
+                <p className="text-sm text-muted-foreground max-w-sm mx-auto mt-1">
+                  We could not find any children registered under your parent account. Please contact the school administrator.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              {/* Selected Child Info */}
+              <div className="bg-card rounded-2xl border border-border/50 p-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center font-bold text-lg text-primary">
+                      {childInitials}
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-display font-semibold text-foreground">
+                        {selectedChild?.full_name || "Unknown"}
+                      </h2>
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        {selectedChild?.classes
+                          ? `${selectedChild.classes.grade} • ${selectedChild.classes.stream}`
+                          : "Grade unavailable"}{" "}
+                        • Admission No: <strong className="font-mono">{selectedChild?.admission_number || "N/A"}</strong>
                       </p>
-                      <div
-                        className={`w-10 h-10 mx-auto rounded-full flex items-center justify-center ${
-                          record.status !== "absent"
-                            ? "bg-success/10 text-success"
-                            : "bg-destructive/10 text-destructive"
-                        }`}
+                    </div>
+                  </div>
+                  {user.children && user.children.length > 1 && (
+                    <div className="w-56">
+                      <Select
+                        value={selectedChildId || ""}
+                        onValueChange={(val) => setSelectedChildId(val)}
                       >
-                        {record.status === "absent" ? "×" : "✓"}
-                      </div>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select child" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {user.children.map((child) => (
+                            <SelectItem key={child.id} value={child.id}>
+                              {child.full_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              {/* Upcoming Events */}
-              <div className="bg-card rounded-xl border border-border/50 p-5">
-                <h3 className="font-display font-semibold text-foreground mb-4">Latest Notices</h3>
-                <div className="space-y-3">
-                  {parentNotices.length > 0 ? (
-                    parentNotices.map((notice) => (
-                      <div key={notice.id} className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
-                        <div className="w-12 h-12 rounded-lg bg-primary/10 flex flex-col items-center justify-center">
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(notice.published_at || notice.created_at).toLocaleDateString("en-KE", {
-                              month: "short",
-                            })}
-                          </span>
-                          <span className="text-lg font-bold text-primary">
-                            {new Date(notice.published_at || notice.created_at).getDate()}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground text-sm">{notice.title}</p>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No notices published yet.</p>
                   )}
                 </div>
               </div>
 
-              {/* Fee Summary */}
-              <div className="bg-card rounded-xl border border-border/50 p-5">
-                <h3 className="font-display font-semibold text-foreground mb-4">Fee Summary</h3>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Term Fee</span>
-                    <span className="font-medium text-foreground">{formatCurrency(totalFee)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Paid</span>
-                    <span className="font-medium text-success">{formatCurrency(totalPaid)}</span>
-                  </div>
-                  <div className="border-t border-border pt-2 mt-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium text-foreground">Balance</span>
-                      <span className={cn("font-bold", balanceValueClass)}>
-                        {formatCurrency(balance)}
-                      </span>
-                    </div>
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <StatCard
+                  title="Competency Status"
+                  value={latestPerformanceLabel}
+                  subtitle="Latest assessment score"
+                  icon={TrendingUp}
+                  variant="primary"
+                />
+                <StatCard
+                  title="SSS Pathway Placement"
+                  value={parentPathwayAllocation?.finalized ? parentPathwayAllocation.pathway : "Pending"}
+                  subtitle={
+                    parentPathwayAllocation?.finalized
+                      ? `Finalized on ${new Date(parentPathwayAllocation.finalized_at).toLocaleDateString()}`
+                      : "Evaluations ongoing"
+                  }
+                  icon={Route}
+                  variant={parentPathwayAllocation?.finalized ? "success" : "default"}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Recent Assessments Card */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base font-semibold">Competency Performance by Area</CardTitle>
+                      <CardDescription>
+                        Latest assessment remarks recorded per learning area.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3.5">
+                      {Object.values(latestBySubject).length > 0 ? (
+                        Object.values(latestBySubject).map((record) => (
+                          <div key={record.id} className="flex items-center justify-between p-3.5 bg-muted/40 rounded-xl">
+                            <div>
+                              <p className="font-semibold text-sm text-foreground">
+                                {record.sub_strand?.strand?.learning_area || "Other"}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {record.sub_strand?.name || "Sub-strand remarks"}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <Badge className="text-xs">{record.rubric_score}</Badge>
+                              {record.qualitative_notes && (
+                                <p className="text-[11px] text-muted-foreground max-w-xs mt-1 truncate">
+                                  {record.qualitative_notes}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="py-8 text-center text-sm text-muted-foreground border border-dashed rounded-xl">
+                          No assessment grades logged for this student yet.
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+                <div className="space-y-6">
+                  {/* Pathway Quick Summary */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base font-semibold">Confirmed SSS Placement</CardTitle>
+                      <CardDescription>Transition to Grade 10 Senior Secondary</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {parentPathwayAllocation ? (
+                        <div className="space-y-3">
+                          <div className="p-3.5 rounded-xl border bg-success/5 border-success/20">
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Confirmed Pathway</span>
+                            <span className="font-bold text-success text-base flex items-center gap-1.5">
+                              <Route className="w-4 h-4" />
+                              {parentPathwayAllocation.pathway === "STEM"
+                                ? "STEM Pathway"
+                                : parentPathwayAllocation.pathway === "Social_Sciences"
+                                ? "Social Sciences"
+                                : "Arts & Sports"}
+                            </span>
+                          </div>
+                          {parentPathwayAllocation.kjsea_score !== null && (
+                            <div className="p-3.5 rounded-xl border bg-card">
+                              <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-0.5">KJSEA Score</span>
+                              <span className="font-bold text-foreground text-sm">{parentPathwayAllocation.kjsea_score}%</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="py-6 text-center text-xs text-muted-foreground leading-relaxed border border-dashed rounded-xl px-2">
+                          Evaluations for Senior Secondary Pathway are pending results finalization by the school.
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
             </div>
-          </div>
-        </>
-      )}
-
-      {/* Bursar Dashboard */}
-      {user.role === "bursar" && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatCard
-              title="Expected (Term)"
-              value={formatCurrency(feeSummary?.totalExpected || 0)}
-              subtitle={`${studentCount} students`}
-              icon={CreditCard}
-            />
-            <StatCard
-              title="Collected"
-              value={formatCurrency(feeSummary?.totalCollected || 0)}
-              subtitle={`${feeSummary?.collectionRate || 0}% collection rate`}
-              icon={TrendingUp}
-              variant="success"
-            />
-            <StatCard
-              title="Outstanding"
-              value={formatCurrency(feeSummary?.totalBalance || 0)}
-              subtitle="Pending balances"
-              icon={Calendar}
-              variant="primary"
-            />
-            <StatCard
-              title="Today's Receipts"
-              value={formatCurrency(bursarTodayReceipts.total)}
-              subtitle={`${bursarTodayReceipts.count} payments`}
-              icon={CreditCard}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-              {/* Collection by Grade */}
-              <div className="bg-card rounded-xl border border-border/50 p-5">
-                <h3 className="font-display font-semibold text-foreground mb-4">Collection by Grade</h3>
-                <div className="space-y-3">
-                  {bursarByGrade.length > 0 ? (
-                    bursarByGrade.map((row) => (
-                      <div key={row.grade} className="p-3 bg-muted/50 rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="font-medium text-foreground">{row.grade}</span>
-                          <span className="text-sm text-muted-foreground">
-                            {row.expected > 0 ? Math.round((row.collected / row.expected) * 100) : 0}%
-                          </span>
-                        </div>
-                        <div className="h-2 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-success rounded-full"
-                            style={{ width: `${row.expected > 0 ? (row.collected / row.expected) * 100 : 0}%` }}
-                          />
-                        </div>
-                        <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-                          <span>Collected: {formatCurrency(row.collected)}</span>
-                          <span>Expected: {formatCurrency(row.expected)}</span>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No fee data available.</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Recent Payments */}
-              <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
-                <div className="px-5 py-4 border-b border-border">
-                  <h3 className="font-display font-semibold text-foreground">Recent Payments</h3>
-                </div>
-                <div className="divide-y divide-border">
-                  {bursarRecentPayments.length > 0 ? (
-                    bursarRecentPayments.map((payment) => (
-                      <div key={payment.id} className="px-5 py-3 flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-foreground">{payment.student?.full_name || "Student"}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {payment.student?.class
-                              ? `Grade ${payment.student.class.grade}${payment.student.class.stream}`
-                              : "Class"}{" "}
-                            • {payment.payment_method || "Payment"}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-medium text-success">+{formatCurrency(Number(payment.paid_amount || 0))}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {payment.payment_date
-                              ? new Date(payment.payment_date).toLocaleDateString("en-KE", { month: "short", day: "numeric" })
-                              : "Today"}
-                          </p>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="px-5 py-6 text-sm text-muted-foreground">No payments recorded yet.</div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              {/* Quick Actions */}
-              <div className="bg-card rounded-xl border border-border/50 p-5">
-                <h3 className="font-display font-semibold text-foreground mb-4">Quick Actions</h3>
-                <div className="space-y-2">
-                  <button className="w-full flex items-center gap-3 p-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-left">
-                    <CreditCard className="w-5 h-5" />
-                    <span className="text-sm font-medium">Record Payment</span>
-                  </button>
-                  <button className="w-full flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-left">
-                    <BookOpen className="w-5 h-5 text-muted-foreground" />
-                    <span className="text-sm font-medium">Generate Statement</span>
-                  </button>
-                  <button className="w-full flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-left">
-                    <Bell className="w-5 h-5 text-warning" />
-                    <span className="text-sm font-medium">Send Reminders</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Defaulters */}
-              <div className="bg-card rounded-xl border border-destructive/30 p-5">
-                <h3 className="font-display font-semibold text-destructive mb-4">High Balances</h3>
-                <div className="space-y-3">
-                  {bursarBalances.length > 0 ? (
-                    bursarBalances.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between p-2 bg-destructive/10 rounded-lg">
-                        <div>
-                          <p className="font-medium text-foreground text-sm">{item.student?.full_name || "Student"}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.student?.class
-                              ? `Grade ${item.student.class.grade}${item.student.class.stream}`
-                              : "Class"}
-                          </p>
-                        </div>
-                        <span className="font-medium text-destructive text-sm">
-                          {formatCurrency(item.balance)}
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No outstanding balances.</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {user.role === "librarian" && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatCard
-              title="Library"
-              value="Active"
-              subtitle="Inventory and issue register enabled"
-              icon={BookOpen}
-            />
-            <StatCard
-              title="Loans"
-              value="Manage"
-              subtitle="Issue and receive books from the Library page"
-              icon={ClipboardCheck}
-              variant="primary"
-            />
-            <StatCard
-              title="Penalties"
-              value="Configured"
-              subtitle="Set due days and daily charges in Library"
-              icon={CreditCard}
-              variant="success"
-            />
-            <StatCard
-              title="Loss Tracking"
-              value="Enabled"
-              subtitle="Teacher-overdue books are treated as lost"
-              icon={Calendar}
-            />
-          </div>
-
-          <div className="bg-card rounded-xl border border-border/50 p-5">
-            <h3 className="font-display font-semibold text-foreground mb-3">Library Workflow</h3>
-            <div className="space-y-3 text-sm text-muted-foreground">
-              <p>Use librarian-issued loans when overdue penalties should accrue after the configured period.</p>
-              <p>Use teacher-issued loans for classroom circulation. Once the due date passes without a return, the loan is treated as lost in the register.</p>
-              <p>Parents can review each student&apos;s library record from the Library page.</p>
-            </div>
-          </div>
-        </>
+          )}
+        </div>
       )}
     </DashboardLayout>
   );

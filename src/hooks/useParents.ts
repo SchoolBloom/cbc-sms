@@ -57,7 +57,7 @@ export function useParentsWithChildren(
 
       // Then get students with their class info
       let studentsQuery = supabase
-        .from("students")
+        .from("learners")
         .select(`
           id,
           full_name,
