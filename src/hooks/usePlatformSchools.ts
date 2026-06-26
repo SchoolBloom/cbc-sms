@@ -46,7 +46,7 @@ export function usePlatformSchools() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return (data || []) as SchoolRecord[];
+      return (data || []) as any as SchoolRecord[];
     },
   });
 }
@@ -97,7 +97,7 @@ export function useProvisionSchoolAdmin() {
 
   return useMutation({
     mutationFn: async ({ schoolId, adminEmail }: { schoolId: string; adminEmail: string }) => {
-      const { data, error } = await supabase.rpc("provision_school_administrator", {
+      const { data, error } = await (supabase as any).rpc("provision_school_administrator", {
         _school_id: schoolId,
         _admin_email: adminEmail,
       });

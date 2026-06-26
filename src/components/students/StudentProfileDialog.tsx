@@ -1,9 +1,9 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Student } from "@/hooks/useStudents";
+import { Learner } from "@/hooks/useLearners";
 
 interface StudentProfileDialogProps {
-  student: Student | null;
+  student: Learner | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }

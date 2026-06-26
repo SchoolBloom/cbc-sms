@@ -53,25 +53,11 @@ const userSecuritySections = [
 ];
 
 const systemAdminSections = [
-  { name: "School Onboarding", icon: BookUser },
   { name: "School Management", icon: Building2 },
-  { name: "System Overview", icon: ServerCog },
   { name: "Security", icon: Shield },
 ];
 
-const emptySchoolForm = {
-  schoolName: "",
-  schoolCode: "",
-  county: "",
-  subcounty: "",
-  schoolEmail: "",
-  schoolPhone: "",
-  adminName: "",
-  adminEmail: "",
-  adminPhone: "",
-  adminPassword: "",
-  schoolCategories: ["primary_junior_secondary"] as string[],
-};
+
 
 const fileToDataUrl = (file: File) =>
   new Promise<string>((resolve, reject) => {
@@ -125,10 +111,8 @@ export default function Settings() {
   const { data: academicYear, isLoading: academicYearLoading } = useAcademicYear();
   const updateAcademicYear = useUpsertAcademicYear();
   const [activeSection, setActiveSection] = useState(
-    user.role === "system_admin" ? "School Onboarding" : "School Profile"
+    user.role === "system_admin" ? "School Management" : "School Profile"
   );
-  const [isRegisteringSchool, setIsRegisteringSchool] = useState(false);
-  const [schoolForm, setSchoolForm] = useState(emptySchoolForm);
   const [logoUploading, setLogoUploading] = useState(false);
   const [yearForm, setYearForm] = useState({
     id: "",
@@ -146,7 +130,7 @@ export default function Settings() {
   });
 
   useEffect(() => {
-    setActiveSection(user.role === "system_admin" ? "School Onboarding" : "School Profile");
+    setActiveSection(user.role === "system_admin" ? "School Management" : "School Profile");
   }, [user.role]);
 
   useEffect(() => {
@@ -167,40 +151,20 @@ export default function Settings() {
     });
   }, [academicYear]);
 
-  const { data: systemSummary } = useQuery({
-    queryKey: ["system-admin-summary"],
+  const { data: systemSchools = [] } = useQuery({
+    queryKey: ["system-admin-schools-list"],
     queryFn: async () => {
-      if (!session?.access_token) throw new Error("Missing session.");
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3001";
-      const response = await fetch(`${apiUrl}/api/system/summary`, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.error || "Failed to load system summary.");
-      }
-      return response.json();
-    },
-    enabled: user.role === "system_admin" && Boolean(session?.access_token),
-  });
-
-  const { data: apiHealth = { ok: false, timestamp: null as string | null } } = useQuery({
-    queryKey: ["settings-api-health"],
-    queryFn: async () => {
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3001";
-      const response = await fetch(`${apiUrl}/api/health`);
-      if (!response.ok) throw new Error("Health check failed.");
-      const payload = await response.json();
-      return {
-        ok: Boolean(payload.ok),
-        timestamp: payload.timestamp || null,
-      };
+      const { data, error } = await supabase
+        .from("schools")
+        .select("*")
+        .order("name");
+      if (error) throw error;
+      return (data || []) as any[];
     },
     enabled: user.role === "system_admin",
-    retry: 0,
   });
+
+  // System metrics and profile queries removed from settings (moved to dashboard)
 
   const { data: schoolProfile } = useQuery({
     queryKey: ["school-profile", schoolId, authUser?.id, user.role],
@@ -258,17 +222,6 @@ export default function Settings() {
     enabled: user.role !== "system_admin" && Boolean(authUser?.id),
   });
   const editableSchoolId = schoolId || schoolProfile?.id || null;
-
-  const systemRoleBreakdown = useMemo(
-    () => (systemSummary?.metrics?.roleBreakdown || {}) as Record<string, number>,
-    [systemSummary]
-  );
-  const systemSchools = systemSummary?.schools || [];
-  const systemProfilesCount = systemSummary?.metrics?.totalSignups || 0;
-  const assignedRoles = systemSummary?.metrics?.assignedRoles || 0;
-  const schoolsWithBasic = systemSummary?.metrics?.schoolsWithBasic || 0;
-  const schoolsWithSenior = systemSummary?.metrics?.schoolsWithSenior || 0;
-  const schoolsWithBoth = systemSummary?.metrics?.schoolsWithBoth || 0;
 
   const handleSaveAcademicYear = async () => {
     await updateAcademicYear.mutateAsync({
@@ -331,69 +284,7 @@ export default function Settings() {
     }
   };
 
-  const toggleSchoolCategory = (category: string, checked: boolean) => {
-    setSchoolForm((prev) => ({
-      ...prev,
-      schoolCategories: checked
-        ? Array.from(new Set([...prev.schoolCategories, category]))
-        : prev.schoolCategories.filter((value) => value !== category),
-    }));
-  };
 
-  const handleRegisterSchool = async () => {
-    if (!session?.access_token) {
-      toast.error("You must be signed in to register a school.");
-      return;
-    }
-
-    if (
-      !schoolForm.schoolName.trim() ||
-      !schoolForm.schoolCode.trim() ||
-      !schoolForm.adminName.trim() ||
-      !schoolForm.adminEmail.trim() ||
-      !schoolForm.adminPassword.trim()
-    ) {
-      toast.error("Fill in the school name, code, and administrator credentials.");
-      return;
-    }
-
-    if (schoolForm.schoolCategories.length === 0) {
-      toast.error("Select at least one school category.");
-      return;
-    }
-
-    setIsRegisteringSchool(true);
-
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3001";
-      const response = await fetch(`${apiUrl}/api/system/schools`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify(schoolForm),
-      });
-
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload.error || "Failed to register school.");
-      }
-
-      toast.success(`School registered: ${payload.school?.name || schoolForm.schoolName}`);
-      setSchoolForm(emptySchoolForm);
-      queryClient.invalidateQueries({ queryKey: ["system-admin-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["settings-api-health"] });
-    } catch (error) {
-      if (error instanceof TypeError) {
-        toast.error("Could not reach the school onboarding API. Start the server with `npm run dev:server` or check `VITE_API_URL`/CORS.");
-      } else {
-        toast.error(error instanceof Error ? error.message : "Failed to register school.");
-      }
-    } finally {
-      setIsRegisteringSchool(false);
-    }
-  };
 
   const sections =
     user.role === "system_admin"
@@ -439,274 +330,13 @@ export default function Settings() {
         </div>
 
         <div className="lg:col-span-2 space-y-6">
-          {user.role === "system_admin" && activeSection === "School Onboarding" && (
-            <div className="bg-card rounded-xl border border-border/50 p-6 space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <BookUser className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <h2 className="font-display font-semibold text-foreground">Register School and Administrator</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Create the school record and provision only the main administrator for that school.
-                  </p>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="schoolName">School Name</Label>
-                  <Input
-                    id="schoolName"
-                    value={schoolForm.schoolName}
-                    onChange={(e) => setSchoolForm((prev) => ({ ...prev, schoolName: e.target.value }))}
-                    placeholder="Sanaet Education Centre"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="schoolCode">School Code</Label>
-                  <Input
-                    id="schoolCode"
-                    value={schoolForm.schoolCode}
-                    onChange={(e) => setSchoolForm((prev) => ({ ...prev, schoolCode: e.target.value.toUpperCase() }))}
-                    placeholder="12345678"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <Label>School Category</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <label className="flex items-start gap-3 rounded-xl border border-border/50 p-4 cursor-pointer">
-                    <Checkbox
-                      checked={schoolForm.schoolCategories.includes("primary_junior_secondary")}
-                      onCheckedChange={(checked) => toggleSchoolCategory("primary_junior_secondary", checked === true)}
-                    />
-                    <div>
-                      <p className="font-medium text-foreground">Primary and Junior Secondary</p>
-                      <p className="text-sm text-muted-foreground">PP1 to Grade 9</p>
-                    </div>
-                  </label>
-                  <label className="flex items-start gap-3 rounded-xl border border-border/50 p-4 cursor-pointer">
-                    <Checkbox
-                      checked={schoolForm.schoolCategories.includes("senior_secondary")}
-                      onCheckedChange={(checked) => toggleSchoolCategory("senior_secondary", checked === true)}
-                    />
-                    <div>
-                      <p className="font-medium text-foreground">Senior Secondary</p>
-                      <p className="text-sm text-muted-foreground">Grade 10 to Grade 12</p>
-                    </div>
-                  </label>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  A school may belong to one category or both.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="county">County</Label>
-                  <Input
-                    id="county"
-                    value={schoolForm.county}
-                    onChange={(e) => setSchoolForm((prev) => ({ ...prev, county: e.target.value }))}
-                    placeholder="Kajiado"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="subcounty">Sub-County</Label>
-                  <Input
-                    id="subcounty"
-                    value={schoolForm.subcounty}
-                    onChange={(e) => setSchoolForm((prev) => ({ ...prev, subcounty: e.target.value }))}
-                    placeholder="Loitokitok"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="schoolEmail">School Email</Label>
-                  <Input
-                    id="schoolEmail"
-                    type="email"
-                    value={schoolForm.schoolEmail}
-                    onChange={(e) => setSchoolForm((prev) => ({ ...prev, schoolEmail: e.target.value }))}
-                    placeholder="admin@school.com"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="schoolPhone">School Phone</Label>
-                  <Input
-                    id="schoolPhone"
-                    value={schoolForm.schoolPhone}
-                    onChange={(e) => setSchoolForm((prev) => ({ ...prev, schoolPhone: e.target.value }))}
-                    placeholder="+254 700 000 000"
-                  />
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="adminName">Administrator Name</Label>
-                  <Input
-                    id="adminName"
-                    value={schoolForm.adminName}
-                    onChange={(e) => setSchoolForm((prev) => ({ ...prev, adminName: e.target.value }))}
-                    placeholder="Jane Naserian"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="adminEmail">Administrator Email</Label>
-                  <Input
-                    id="adminEmail"
-                    type="email"
-                    value={schoolForm.adminEmail}
-                    onChange={(e) => setSchoolForm((prev) => ({ ...prev, adminEmail: e.target.value }))}
-                    placeholder="head@school.com"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="adminPhone">Administrator Phone</Label>
-                  <Input
-                    id="adminPhone"
-                    value={schoolForm.adminPhone}
-                    onChange={(e) => setSchoolForm((prev) => ({ ...prev, adminPhone: e.target.value }))}
-                    placeholder="+254 711 000 000"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="adminPassword">Temporary Password</Label>
-                  <Input
-                    id="adminPassword"
-                    type="password"
-                    value={schoolForm.adminPassword}
-                    onChange={(e) => setSchoolForm((prev) => ({ ...prev, adminPassword: e.target.value }))}
-                    placeholder="At least 6 characters"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between rounded-xl border border-border/50 bg-muted/30 px-4 py-3">
-                <div>
-                  <p className="font-medium text-foreground">School admin provisioning</p>
-                  <p className="text-sm text-muted-foreground">
-                    This only creates the school and its main administrator. It does not expose school internals to the system admin.
-                  </p>
-                </div>
-                <Button onClick={handleRegisterSchool} disabled={isRegisteringSchool}>
-                  {isRegisteringSchool ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Registering...
-                    </>
-                  ) : (
-                    "Register School"
-                  )}
-                </Button>
-              </div>
-            </div>
-          )}
 
           {user.role === "system_admin" && activeSection === "School Management" && (
             <SchoolManagementPanel />
           )}
 
-          {user.role === "system_admin" && activeSection === "System Overview" && (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <div className="rounded-xl border border-border/50 bg-card p-5">
-                  <p className="text-sm text-muted-foreground">Registered Schools</p>
-                  <p className="mt-2 text-3xl font-display font-bold text-foreground">{systemSchools.length}</p>
-                </div>
-                <div className="rounded-xl border border-border/50 bg-card p-5">
-                  <p className="text-sm text-muted-foreground">Platform Signups</p>
-                  <p className="mt-2 text-3xl font-display font-bold text-foreground">{systemProfilesCount}</p>
-                </div>
-                <div className="rounded-xl border border-border/50 bg-card p-5">
-                  <p className="text-sm text-muted-foreground">Assigned Roles</p>
-                  <p className="mt-2 text-3xl font-display font-bold text-foreground">{assignedRoles}</p>
-                </div>
-                <div className="rounded-xl border border-border/50 bg-card p-5">
-                  <p className="text-sm text-muted-foreground">API Health</p>
-                  <p className="mt-2 text-3xl font-display font-bold text-foreground">
-                    {apiHealth.ok ? "Healthy" : "Offline"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-card rounded-xl border border-border/50 p-6">
-                <div className="flex items-center justify-between gap-3 mb-4">
-                  <div>
-                    <h2 className="font-display font-semibold text-foreground">System Usage and Health</h2>
-                    <p className="text-sm text-muted-foreground">Current platform allocation, school coverage, and category mix.</p>
-                  </div>
-                  <Badge variant="outline">
-                    {apiHealth.timestamp
-                      ? `Health checked ${new Date(apiHealth.timestamp).toLocaleTimeString("en-KE", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}`
-                      : "Health check pending"}
-                  </Badge>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                  {[
-                    { label: "PP1 to Grade 9 schools", value: schoolsWithBasic },
-                    { label: "Grade 10 to 12 schools", value: schoolsWithSenior },
-                    { label: "Schools with both", value: schoolsWithBoth },
-                    { label: "System admins", value: systemRoleBreakdown.system_admin || 0 },
-                    { label: "School admins", value: systemRoleBreakdown.admin || 0 },
-                    { label: "Teachers", value: systemRoleBreakdown.teacher || 0 },
-                    { label: "Parents", value: systemRoleBreakdown.parent || 0 },
-                  ].map((item) => (
-                    <div key={item.label} className="rounded-xl bg-muted/40 px-4 py-3">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</p>
-                      <p className="mt-2 text-2xl font-display font-bold text-foreground">{item.value}</p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="space-y-3">
-                  {systemSchools.length > 0 ? (
-                    systemSchools.slice(0, 6).map((school) => (
-                      <div key={school.id} className="flex flex-col gap-2 rounded-xl border border-border/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <p className="font-medium text-foreground">{school.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {school.code}
-                            {(school.county || school.subcounty) &&
-                              ` • ${[school.subcounty, school.county].filter(Boolean).join(", ")}`}
-                          </p>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {(school.school_categories || []).map((category: string) => (
-                              <Badge key={category} variant="outline">
-                                {category === "primary_junior_secondary" ? "PP1 to Grade 9" : "Grade 10 to 12"}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground">No schools registered yet.</p>
-                  )}
-                </div>
-                <div className="mt-6 rounded-xl border border-border/50 bg-muted/30 px-4 py-3">
-                  <p className="font-medium text-foreground">System admin access</p>
-                  <p className="text-sm text-muted-foreground">
-                    This role can register schools and their administrators, but it remains limited to overall system performance and onboarding visibility.
-                  </p>
-                </div>
-              </div>
-            </>
-          )}
+          {/* System Overview section moved to system admin dashboard */}
 
           {user.role === "system_admin" && activeSection === "Security" && (
             <div className="bg-card rounded-xl border border-border/50 p-6 space-y-6">
@@ -773,7 +403,7 @@ export default function Settings() {
                     )}
                     {user.role === "admin" && (
                       <p className="mt-3 text-xs text-muted-foreground">
-                        Upload a square or landscape logo up to 1MB. It will appear on generated reports for this school.
+                        Upload a square or landscape logo up to 1MB.
                       </p>
                     )}
                   </div>
@@ -1041,29 +671,19 @@ function SchoolManagementPanel() {
     adminPassword: "",
   });
   const [isUpdating, setIsUpdating] = useState(false);
-  const { session } = useAuth();
   const queryClient = useQueryClient();
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
-  const { data: schoolsData, isLoading } = useQuery({
+  const { data: schools = [], isLoading } = useQuery({
     queryKey: ["system-admin-schools"],
     queryFn: async () => {
-      if (!session?.access_token) throw new Error("Missing session.");
-      const response = await fetch(`${apiUrl}/api/system/schools-list`, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.error || "Failed to load schools.");
-      }
-      return response.json();
+      const { data, error } = await supabase
+        .from("schools")
+        .select("*")
+        .order("name");
+      if (error) throw error;
+      return (data || []) as SchoolData[];
     },
-    enabled: Boolean(session?.access_token),
   });
-
-  const schools: SchoolData[] = schoolsData?.schools || [];
 
   const openEditDialog = (school: SchoolData) => {
     setEditingSchool(school);
@@ -1076,32 +696,31 @@ function SchoolManagementPanel() {
   };
 
   const handleUpdateAdmin = async () => {
-    if (!editingSchool || !session?.access_token) return;
+    if (!editingSchool) return;
     
     setIsUpdating(true);
     try {
-      const response = await fetch(`${apiUrl}/api/system/schools/${editingSchool.id}/admin`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          adminName: editForm.adminName,
-          adminEmail: editForm.adminEmail,
-          adminPhone: editForm.adminPhone,
-          adminPassword: editForm.adminPassword || undefined,
-        }),
+      const { error: updateFieldsError } = await supabase
+        .from("schools")
+        .update({
+          administrator_name: editForm.adminName,
+          administrator_email: editForm.adminEmail.trim().toLowerCase(),
+          administrator_phone: editForm.adminPhone || null,
+        })
+        .eq("id", editingSchool.id);
+
+      if (updateFieldsError) throw updateFieldsError;
+
+      const { error } = await (supabase as any).rpc("provision_school_administrator", {
+        _school_id: editingSchool.id,
+        _admin_email: editForm.adminEmail.trim().toLowerCase(),
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to update admin");
-      }
+      if (error) throw error;
 
       toast.success("School administrator updated successfully");
       queryClient.invalidateQueries({ queryKey: ["system-admin-schools"] });
-      queryClient.invalidateQueries({ queryKey: ["system-admin-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["system-admin-schools-dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["school-profile"] });
       setEditingSchool(null);
     } catch (err: any) {

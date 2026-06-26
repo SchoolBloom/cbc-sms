@@ -49,9 +49,9 @@ export function useLearners() {
         .from("learners")
         .select(`
           *,
-          classes:class_id (id, grade, stream),
-          parents:parent_id (id, full_name, phone),
-          secondary_parent:parent_id_secondary (id, full_name, phone)
+          classes:classes (id, grade, stream),
+          parents:parents!learners_parent_id_fkey (id, full_name, phone),
+          secondary_parent:parents!learners_parent_id_secondary_fkey (id, full_name, phone)
         `)
         .order("full_name");
 
@@ -101,9 +101,9 @@ export function useLearner(id: string) {
         .from("learners")
         .select(`
           *,
-          classes:class_id (id, grade, stream),
-          parents:parent_id (id, full_name, phone, email),
-          secondary_parent:parent_id_secondary (id, full_name, phone, email)
+          classes:classes (id, grade, stream),
+          parents:parents!learners_parent_id_fkey (id, full_name, phone, email),
+          secondary_parent:parents!learners_parent_id_secondary_fkey (id, full_name, phone, email)
         `)
         .eq("id", id)
         .maybeSingle();

@@ -612,7 +612,7 @@ export default function Assessments() {
             <h1 className="page-title font-display">CBC Assessments</h1>
             <p className="page-subtitle">Record and track learner longitudinal progress</p>
           </div>
-          {canWrite && (
+          {isAdmin && (
             <div className="flex items-center gap-2">
               <KNECExportButton />
             </div>

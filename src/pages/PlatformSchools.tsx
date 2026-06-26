@@ -60,15 +60,16 @@ export default function PlatformSchools() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    const adminEmail = form.administrator_email;
     const schoolId = await createSchool.mutateAsync(form);
     setOpen(false);
     setForm(defaultForm);
 
-    if (form.administrator_email) {
+    if (adminEmail) {
       try {
         await provisionAdmin.mutateAsync({
           schoolId,
-          adminEmail: form.administrator_email,
+          adminEmail,
         });
       } catch {
         // Admin may need to sign up first; school is still created
@@ -86,7 +87,11 @@ export default function PlatformSchools() {
   };
 
   return (
-    <DashboardLayout title="School Onboarding" subtitle="Register schools and provision initial administrators">
+    <DashboardLayout>
+      <div className="page-header mb-6">
+        <h1 className="page-title font-display text-2xl font-bold">School Onboarding</h1>
+        <p className="page-subtitle text-muted-foreground text-sm">Register schools and provision initial administrators</p>
+      </div>
       <div className="flex justify-end mb-6">
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
@@ -114,6 +119,25 @@ export default function PlatformSchools() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
+                  <Label htmlFor="contact-email">School Email</Label>
+                  <Input
+                    id="contact-email"
+                    value={form.contact_email}
+                    onChange={(e) => setForm({ ...form, contact_email: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="contact-phone">School Phone</Label>
+                  <Input
+                    id="contact-phone"
+                    value={form.contact_phone}
+                    onChange={(e) => setForm({ ...form, contact_phone: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
                   <Label htmlFor="nemis-code">NEMIS Code</Label>
                   <Input
                     id="nemis-code"
@@ -133,16 +157,27 @@ export default function PlatformSchools() {
               </div>
               <div className="space-y-2">
                 <Label>Levels Offered</Label>
-                <div className="space-y-2">
-                  {levelOptions.map((level) => (
-                    <label key={level.id} className="flex items-center gap-2 text-sm">
-                      <Checkbox
-                        checked={form.levels_offered.includes(level.id)}
-                        onCheckedChange={(checked) => toggleLevel(level.id, checked === true)}
-                      />
-                      {level.label}
-                    </label>
-                  ))}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label className="flex items-start gap-3 rounded-xl border border-border/50 p-4 cursor-pointer">
+                    <Checkbox
+                      checked={form.levels_offered.includes("primary_junior_secondary")}
+                      onCheckedChange={(checked) => toggleLevel("primary_junior_secondary", checked === true)}
+                    />
+                    <div>
+                      <p className="font-medium text-foreground">Primary and Junior Secondary</p>
+                      <p className="text-sm text-muted-foreground">PP1 to Grade 9</p>
+                    </div>
+                  </label>
+                  <label className="flex items-start gap-3 rounded-xl border border-border/50 p-4 cursor-pointer">
+                    <Checkbox
+                      checked={form.levels_offered.includes("senior_secondary")}
+                      onCheckedChange={(checked) => toggleLevel("senior_secondary", checked === true)}
+                    />
+                    <div>
+                      <p className="font-medium text-foreground">Senior Secondary</p>
+                      <p className="text-sm text-muted-foreground">Grade 10 to Grade 12</p>
+                    </div>
+                  </label>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">

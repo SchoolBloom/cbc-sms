@@ -66,7 +66,8 @@ CREATE TABLE IF NOT EXISTS public.academic_years (
   term3_end DATE,
   school_id UUID REFERENCES public.schools(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (school_id, label)
 );
 
 -- =============================================================================
@@ -75,7 +76,7 @@ CREATE TABLE IF NOT EXISTS public.academic_years (
 
 CREATE TABLE IF NOT EXISTS public.teachers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES public.profiles(user_id) ON DELETE SET NULL,
+  user_id UUID REFERENCES public.profiles(user_id) ON DELETE SET NULL UNIQUE,
   school_id UUID REFERENCES public.schools(id) ON DELETE CASCADE,
   full_name TEXT NOT NULL,
   email TEXT,
@@ -105,6 +106,8 @@ CREATE TABLE IF NOT EXISTS public.parents (
   full_name TEXT NOT NULL,
   phone TEXT NOT NULL,
   email TEXT,
+  national_id_number TEXT,
+  occupation TEXT,
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
@@ -339,6 +342,43 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.get_user_school_id(user_uuid UUID)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  resolved_school_id UUID;
+BEGIN
+  -- 1. Try profiles
+  SELECT school_id INTO resolved_school_id FROM public.profiles WHERE user_id = user_uuid;
+  IF resolved_school_id IS NOT NULL THEN
+    RETURN resolved_school_id;
+  END IF;
+
+  -- 2. Try user_roles
+  SELECT school_id INTO resolved_school_id FROM public.user_roles WHERE user_id = user_uuid AND school_id IS NOT NULL LIMIT 1;
+  IF resolved_school_id IS NOT NULL THEN
+    RETURN resolved_school_id;
+  END IF;
+
+  -- 3. Try teachers
+  SELECT school_id INTO resolved_school_id FROM public.teachers WHERE user_id = user_uuid LIMIT 1;
+  IF resolved_school_id IS NOT NULL THEN
+    RETURN resolved_school_id;
+  END IF;
+
+  -- 4. Try parents
+  SELECT school_id INTO resolved_school_id FROM public.parents WHERE user_id = user_uuid LIMIT 1;
+  IF resolved_school_id IS NOT NULL THEN
+    RETURN resolved_school_id;
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.provision_school_administrator(
   _school_id UUID,
   _admin_email TEXT
@@ -416,6 +456,13 @@ CREATE POLICY "Enable read for user own roles" ON public.user_roles FOR SELECT U
 CREATE POLICY "School admins can manage schools" ON public.schools 
   USING (public.is_school_admin(auth.uid(), id) OR public.is_system_admin(auth.uid()));
 
+CREATE POLICY "Users can view their own school details" ON public.schools
+  FOR SELECT
+  USING (
+    id = public.get_user_school_id(auth.uid()) OR
+    public.is_system_admin(auth.uid())
+  );
+
 CREATE POLICY "School admins can manage profiles" ON public.profiles 
   FOR ALL USING (public.is_school_admin(auth.uid(), school_id) OR public.is_system_admin(auth.uid()));
 
@@ -454,6 +501,22 @@ CREATE POLICY "School admins can manage pathway preferences" ON public.pathway_p
 
 CREATE POLICY "School admins can manage pathway allocations" ON public.pathway_allocations 
   FOR ALL USING (public.is_school_admin(auth.uid(), school_id) OR public.is_system_admin(auth.uid()));
+
+-- School user view policies for segmentation
+CREATE POLICY "Users can view school academic years" ON public.academic_years
+  FOR SELECT USING (school_id = public.get_user_school_id(auth.uid()) OR public.is_system_admin(auth.uid()));
+
+CREATE POLICY "Users can view school teachers" ON public.teachers
+  FOR SELECT USING (school_id = public.get_user_school_id(auth.uid()) OR public.is_system_admin(auth.uid()));
+
+CREATE POLICY "Users can view school classes" ON public.classes
+  FOR SELECT USING (school_id = public.get_user_school_id(auth.uid()) OR public.is_system_admin(auth.uid()));
+
+CREATE POLICY "Users can view school parents" ON public.parents
+  FOR SELECT USING (school_id = public.get_user_school_id(auth.uid()) OR public.is_system_admin(auth.uid()));
+
+CREATE POLICY "Users can view school subject assignments" ON public.subject_assignments
+  FOR SELECT USING (school_id = public.get_user_school_id(auth.uid()) OR public.is_system_admin(auth.uid()));
 
 -- Teacher policies
 CREATE POLICY "Teachers can view classes in their school" ON public.classes 
@@ -518,3 +581,260 @@ $$;
 CREATE OR REPLACE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- =============================================================================
+-- 11. USER ROLES SCHOOL ID AUTO-POPULATION & SYNCHRONIZATION TRIGGERS
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION public.set_user_role_school_id()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  resolved_school_id UUID;
+BEGIN
+  IF NEW.school_id IS NULL THEN
+    -- Try resolving from teachers if role is teacher
+    IF NEW.role = 'teacher' THEN
+      SELECT school_id INTO resolved_school_id FROM public.teachers WHERE user_id = NEW.user_id LIMIT 1;
+    -- Try resolving from parents if role is parent
+    ELSIF NEW.role = 'parent' THEN
+      SELECT school_id INTO resolved_school_id FROM public.parents WHERE user_id = NEW.user_id LIMIT 1;
+    -- Try resolving from profiles
+    ELSIF NEW.role = 'admin' THEN
+      SELECT school_id INTO resolved_school_id FROM public.profiles WHERE user_id = NEW.user_id LIMIT 1;
+    END IF;
+
+    -- Fallback to get_user_school_id helper
+    IF resolved_school_id IS NULL THEN
+      resolved_school_id := public.get_user_school_id(NEW.user_id);
+    END IF;
+
+    NEW.school_id := resolved_school_id;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_set_user_role_school_id ON public.user_roles;
+CREATE TRIGGER trg_set_user_role_school_id
+  BEFORE INSERT OR UPDATE ON public.user_roles
+  FOR EACH ROW EXECUTE FUNCTION public.set_user_role_school_id();
+
+CREATE OR REPLACE FUNCTION public.sync_user_role_school_id()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF TG_TABLE_NAME = 'teachers' THEN
+    IF NEW.user_id IS NOT NULL AND NEW.school_id IS NOT NULL THEN
+      UPDATE public.user_roles
+      SET school_id = NEW.school_id
+      WHERE user_id = NEW.user_id AND role = 'teacher' AND (school_id IS NULL OR school_id != NEW.school_id);
+    END IF;
+  ELSIF TG_TABLE_NAME = 'parents' THEN
+    IF NEW.user_id IS NOT NULL AND NEW.school_id IS NOT NULL THEN
+      UPDATE public.user_roles
+      SET school_id = NEW.school_id
+      WHERE user_id = NEW.user_id AND role = 'parent' AND (school_id IS NULL OR school_id != NEW.school_id);
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_sync_teacher_school_id ON public.teachers;
+CREATE TRIGGER trg_sync_teacher_school_id
+  AFTER INSERT OR UPDATE ON public.teachers
+  FOR EACH ROW EXECUTE FUNCTION public.sync_user_role_school_id();
+
+DROP TRIGGER IF EXISTS trg_sync_parent_school_id ON public.parents;
+CREATE TRIGGER trg_sync_parent_school_id
+  AFTER INSERT OR UPDATE ON public.parents
+  FOR EACH ROW EXECUTE FUNCTION public.sync_user_role_school_id();
+
+-- =============================================================================
+-- 12. AUTOMATIC STUDENT PROMOTION TRIGGERS
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION public.get_next_grade(current_grade TEXT)
+RETURNS TEXT
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  CASE current_grade
+    WHEN 'PP1' THEN RETURN 'PP2';
+    WHEN 'PP2' THEN RETURN 'Grade 1';
+    WHEN 'Grade 1' THEN RETURN 'Grade 2';
+    WHEN 'Grade 2' THEN RETURN 'Grade 3';
+    WHEN 'Grade 3' THEN RETURN 'Grade 4';
+    WHEN 'Grade 4' THEN RETURN 'Grade 5';
+    WHEN 'Grade 5' THEN RETURN 'Grade 6';
+    WHEN 'Grade 6' THEN RETURN 'Grade 7';
+    WHEN 'Grade 7' THEN RETURN 'Grade 8';
+    WHEN 'Grade 8' THEN RETURN 'Grade 9';
+    WHEN 'Grade 9' THEN RETURN 'Grade 10';
+    WHEN 'Grade 10' THEN RETURN 'Grade 11';
+    WHEN 'Grade 11' THEN RETURN 'Grade 12';
+    ELSE RETURN NULL;
+  END CASE;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.promote_learners_on_year_rollover()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  old_year_label TEXT;
+  learner_rec RECORD;
+  current_class_rec RECORD;
+  next_grade_label TEXT;
+  next_class_uuid UUID;
+BEGIN
+  -- Only trigger when a year is set to current (is_current becomes true)
+  IF NEW.is_current = true AND (TG_OP = 'INSERT' OR OLD.is_current = false) THEN
+    -- Find the previous current academic year label for this school (excluding the new one)
+    SELECT label INTO old_year_label
+    FROM public.academic_years
+    WHERE school_id = NEW.school_id AND is_current = true AND id != NEW.id
+    LIMIT 1;
+
+    -- If no previous year label is found, we cannot run rollover
+    IF old_year_label IS NOT NULL AND old_year_label != NEW.label THEN
+      -- Loop over all active learners in the school
+      FOR learner_rec IN
+        SELECT l.id, l.class_id
+        FROM public.learners l
+        WHERE l.school_id = NEW.school_id AND l.status = 'active' AND l.class_id IS NOT NULL
+      LOOP
+        -- Get their current class details
+        SELECT grade, stream, academic_year INTO current_class_rec
+        FROM public.classes
+        WHERE id = learner_rec.class_id;
+
+        -- If their current class belongs to the old academic year
+        IF current_class_rec.academic_year = old_year_label THEN
+          next_grade_label := public.get_next_grade(current_class_rec.grade);
+
+          IF next_grade_label IS NULL THEN
+            -- Grade 12 or end of schooling: mark as completed and clear class_id
+            UPDATE public.learners
+            SET status = 'completed', class_id = NULL
+            WHERE id = learner_rec.id;
+          ELSE
+            -- Try to find the next class for the new academic year
+            SELECT id INTO next_class_uuid
+            FROM public.classes
+            WHERE school_id = NEW.school_id 
+              AND grade = next_grade_label 
+              AND stream = current_class_rec.stream 
+              AND academic_year = NEW.label
+            LIMIT 1;
+
+            -- If it doesn't exist, create it automatically
+            IF next_class_uuid IS NULL THEN
+              INSERT INTO public.classes (school_id, grade, stream, academic_year)
+              VALUES (NEW.school_id, next_grade_label, current_class_rec.stream, NEW.label)
+              RETURNING id INTO next_class_uuid;
+            END IF;
+
+            -- Promote learner to next class
+            UPDATE public.learners
+            SET class_id = next_class_uuid
+            WHERE id = learner_rec.id;
+          END IF;
+        END IF;
+      END LOOP;
+    END IF;
+
+    -- De-select other current academic years for the same school
+    UPDATE public.academic_years
+    SET is_current = false
+    WHERE school_id = NEW.school_id AND id != NEW.id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_promote_learners_on_year_rollover ON public.academic_years;
+CREATE TRIGGER trg_promote_learners_on_year_rollover
+  AFTER INSERT OR UPDATE ON public.academic_years
+  FOR EACH ROW EXECUTE FUNCTION public.promote_learners_on_year_rollover();
+
+-- =============================================================================
+-- 13. PRELOADED SUBJECTS DATABASE
+-- =============================================================================
+
+-- Insert subjects for primary & junior secondary
+INSERT INTO public.subjects (name, category, code) VALUES
+  ('English', 'primary_junior_secondary', 'PJS_ENG'),
+  ('Kiswahili', 'primary_junior_secondary', 'PJS_KISW'),
+  ('Mathematics', 'primary_junior_secondary', 'PJS_MATH'),
+  ('Environmental Activities', 'primary_junior_secondary', 'PJS_ENV'),
+  ('Hygiene and Nutrition', 'primary_junior_secondary', 'PJS_HYG'),
+  ('Religious Education', 'primary_junior_secondary', 'PJS_REL'),
+  ('Movement and Creative Activities', 'primary_junior_secondary', 'PJS_MOVE'),
+  ('Science and Technology', 'primary_junior_secondary', 'PJS_SCI'),
+  ('Social Studies', 'primary_junior_secondary', 'PJS_SST'),
+  ('Home Science', 'primary_junior_secondary', 'PJS_HSC'),
+  ('Agriculture', 'primary_junior_secondary', 'PJS_AGR'),
+  ('Creative Arts', 'primary_junior_secondary', 'PJS_CART'),
+  ('Physical and Health Education', 'primary_junior_secondary', 'PJS_PHE'),
+  ('Integrated Science', 'primary_junior_secondary', 'PJS_ISCI'),
+  ('Pre-Technical Studies', 'primary_junior_secondary', 'PJS_PTS'),
+  ('Business Studies', 'primary_junior_secondary', 'PJS_BUS'),
+  ('Life Skills Education', 'primary_junior_secondary', 'PJS_LSE'),
+  ('Physical Education and Sports', 'primary_junior_secondary', 'PJS_PES')
+ON CONFLICT (code) DO NOTHING;
+
+-- Insert subjects for senior secondary (STEM pathway)
+INSERT INTO public.subjects (name, category, pathway, code) VALUES
+  ('English', 'senior_secondary', 'STEM', 'SS_STEM_ENG'),
+  ('Kiswahili', 'senior_secondary', 'STEM', 'SS_STEM_KISW'),
+  ('Community Service Learning', 'senior_secondary', 'STEM', 'SS_STEM_CSL'),
+  ('Physical Education', 'senior_secondary', 'STEM', 'SS_STEM_PE'),
+  ('Mathematics', 'senior_secondary', 'STEM', 'SS_STEM_MATH'),
+  ('Biology', 'senior_secondary', 'STEM', 'SS_STEM_BIO'),
+  ('Chemistry', 'senior_secondary', 'STEM', 'SS_STEM_CHEM'),
+  ('Physics', 'senior_secondary', 'STEM', 'SS_STEM_PHYS'),
+  ('General Science', 'senior_secondary', 'STEM', 'SS_STEM_GSCI'),
+  ('Agriculture', 'senior_secondary', 'STEM', 'SS_STEM_AGRI'),
+  ('Computer Studies', 'senior_secondary', 'STEM', 'SS_STEM_COMP'),
+  ('Home Science', 'senior_secondary', 'STEM', 'SS_STEM_HSCI')
+ON CONFLICT (code) DO NOTHING;
+
+-- Insert subjects for senior secondary (Social Sciences pathway)
+INSERT INTO public.subjects (name, category, pathway, code) VALUES
+  ('English', 'senior_secondary', 'Social_Sciences', 'SS_SS_ENG'),
+  ('Kiswahili', 'senior_secondary', 'Social_Sciences', 'SS_SS_KISW'),
+  ('Community Service Learning', 'senior_secondary', 'Social_Sciences', 'SS_SS_CSL'),
+  ('Physical Education', 'senior_secondary', 'Social_Sciences', 'SS_SS_PE'),
+  ('History and Citizenship', 'senior_secondary', 'Social_Sciences', 'SS_SS_HIST'),
+  ('Geography', 'senior_secondary', 'Social_Sciences', 'SS_SS_GEOG'),
+  ('Christian Religious Education', 'senior_secondary', 'Social_Sciences', 'SS_SS_CRE'),
+  ('Islamic Religious Education', 'senior_secondary', 'Social_Sciences', 'SS_SS_IRE'),
+  ('Hindu Religious Education', 'senior_secondary', 'Social_Sciences', 'SS_SS_HRE'),
+  ('Business Studies', 'senior_secondary', 'Social_Sciences', 'SS_SS_BUS')
+ON CONFLICT (code) DO NOTHING;
+
+-- Insert subjects for senior secondary (Arts & Sports pathway)
+INSERT INTO public.subjects (name, category, pathway, code) VALUES
+  ('English', 'senior_secondary', 'Arts_Sports', 'SS_AS_ENG'),
+  ('Kiswahili', 'senior_secondary', 'Arts_Sports', 'SS_AS_KISW'),
+  ('Community Service Learning', 'senior_secondary', 'Arts_Sports', 'SS_AS_CSL'),
+  ('Physical Education', 'senior_secondary', 'Arts_Sports', 'SS_AS_PE'),
+  ('Literature in English', 'senior_secondary', 'Arts_Sports', 'SS_AS_LIT'),
+  ('Fasihi ya Kiswahili', 'senior_secondary', 'Arts_Sports', 'SS_AS_FAS'),
+  ('Fine Arts', 'senior_secondary', 'Arts_Sports', 'SS_AS_FA'),
+  ('Music and Dance', 'senior_secondary', 'Arts_Sports', 'SS_AS_MUD'),
+  ('Theatre and Film', 'senior_secondary', 'Arts_Sports', 'SS_AS_TAF'),
+  ('Sports and Recreation', 'senior_secondary', 'Arts_Sports', 'SS_AS_SAR')
+ON CONFLICT (code) DO NOTHING;

@@ -74,8 +74,7 @@ export function getPathwayKey(pathway: string | null | undefined): keyof typeof 
  */
 export function getSubjectsForPathway(pathway: string | null | undefined): string[] {
   const key = getPathwayKey(pathway);
-  if (!key) return [];
-  return PATHWAY_SUBJECTS[key] || [];
+  return [...(PATHWAY_SUBJECTS[key] || [])];
 }
 
 /**

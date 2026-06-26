@@ -5,6 +5,7 @@ import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useSchoolScope } from "@/hooks/useSchoolScope";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,7 @@ interface AddTeacherDialogProps {
 export function AddTeacherDialog({ trigger }: AddTeacherDialogProps) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
+  const { schoolId } = useSchoolScope();
 
   const form = useForm<TeacherFormData>({
     resolver: zodResolver(teacherSchema),
@@ -95,8 +97,15 @@ export function AddTeacherDialog({ trigger }: AddTeacherDialogProps) {
           .insert({
             user_id: profile.user_id,
             role: "teacher",
+            school_id: schoolId,
           });
         if (roleError) throw roleError;
+      } else {
+        const { error: roleUpdateError } = await supabase
+          .from("user_roles")
+          .update({ school_id: schoolId })
+          .eq("id", existingRole.id);
+        if (roleUpdateError) throw roleUpdateError;
       }
 
       const { error: teacherError } = await supabase
@@ -107,6 +116,7 @@ export function AddTeacherDialog({ trigger }: AddTeacherDialogProps) {
             full_name: finalFullName || normalizedEmail,
             email: profile.email || normalizedEmail,
             phone: finalPhone || profile.phone || null,
+            school_id: schoolId,
           },
           { onConflict: "user_id" }
         );

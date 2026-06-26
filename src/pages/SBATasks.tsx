@@ -31,7 +31,7 @@ import {
 } from "@/hooks/useSubjects";
 import { LEARNING_AREAS_BY_LEVEL, getLearningAreasForCategories } from "@/hooks/useAssessments";
 import { useSchoolScope } from "@/hooks/useSchoolScope";
-import { filterSubjectsByPathway, getSubjectsForPathway, validateSubjectPathway } from "@/lib/pathwaySubjects";
+import { getPathwayDisplayName, validateSubjectPathway } from "@/lib/pathwaySubjects";
 import { toast } from "sonner";
 
 export default function SBATasks() {
@@ -61,18 +61,6 @@ export default function SBATasks() {
 
   const createAssignment = useCreateSubjectAssignment();
   const deleteAssignment = useDeleteSubjectAssignment();
-
-  const catalogueLearningAreas = useMemo(
-    () => getLearningAreasForCategories(categories),
-    [categories]
-  );
-
-  const catalogueSubjects = useMemo(() => {
-    const subjectByName = new Map(subjects.map((subject) => [subject.name, subject]));
-    return catalogueLearningAreas.map((name) => subjectByName.get(name)).filter(
-      (subject): subject is (typeof subjects)[number] => Boolean(subject)
-    );
-  }, [catalogueLearningAreas, subjects]);
 
   // Get the selected class's grade to check for pathway filtering
   const selectedClass = useMemo(() => {
@@ -109,23 +97,50 @@ export default function SBATasks() {
     return dominantPathway ? dominantPathway[0] : null;
   }, [classStudents]);
 
-  // Filter subjects based on pathway for senior secondary classes
-  const filteredCatalogueSubjects = useMemo(() => {
-    if (!classPathway) return catalogueSubjects;
-    return filterSubjectsByPathway(catalogueSubjects, classPathway);
-  }, [catalogueSubjects, classPathway]);
+  const selectedClassCategory = useMemo(() => {
+    if (!selectedClass) return null;
+    const seniorSecondaryGrades = ["Grade 10", "Grade 11", "Grade 12"];
+    return seniorSecondaryGrades.includes(selectedClass.grade)
+      ? "senior_secondary"
+      : "primary_junior_secondary";
+  }, [selectedClass]);
+
+  const allClassCategorySubjects = useMemo(() => {
+    if (!selectedClassCategory) return [];
+    return subjects.filter((subject) => subject.category === selectedClassCategory);
+  }, [subjects, selectedClassCategory]);
+
+  const catalogueSubjects = useMemo(() => {
+    if (!selectedClassCategory) return [];
+    return subjects.filter((subject) => {
+      // Filter by the selected class's category
+      if (subject.category !== selectedClassCategory) {
+        return false;
+      }
+      
+      // Filter by pathway if class is senior secondary
+      if (selectedClassCategory === "senior_secondary" && classPathway) {
+        if (subject.pathway && subject.pathway !== classPathway) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+  }, [subjects, selectedClassCategory, classPathway]);
+
+  const filteredCatalogueSubjects = catalogueSubjects;
 
   // Show warning when subjects are filtered by pathway
   useEffect(() => {
-    if (classPathway && filteredCatalogueSubjects.length < catalogueSubjects.length) {
-      const availableSubjects = getSubjectsForPathway(classPathway);
+    if (classPathway && catalogueSubjects.length < allClassCategorySubjects.length) {
       setPathwayWarning(
-        `Showing only ${classPathway} pathway subjects for this class. ${catalogueSubjects.length - filteredCatalogueSubjects.length} subjects hidden.`
+        `Showing only ${getPathwayDisplayName(classPathway)} pathway and core subjects for this class. ${allClassCategorySubjects.length - catalogueSubjects.length} subjects hidden.`
       );
     } else {
       setPathwayWarning(null);
     }
-  }, [classPathway, filteredCatalogueSubjects, catalogueSubjects]);
+  }, [classPathway, catalogueSubjects, allClassCategorySubjects]);
 
   const learningAreaGroups = [
     ...(supportsPrimaryJunior
@@ -263,9 +278,14 @@ export default function SBATasks() {
                 Loading teachers and classes...
               </p>
             )}
-            {!subjectsLoading && catalogueSubjects.length === 0 && (
+            {!subjectsLoading && selectedClassId && catalogueSubjects.length === 0 && (
               <p className="text-xs text-muted-foreground">
-                No learning areas are available for this school's category catalogue.
+                No learning areas are available for this class's category.
+              </p>
+            )}
+            {!subjectsLoading && !selectedClassId && (
+              <p className="text-xs text-muted-foreground">
+                Select a class to load its matching learning areas.
               </p>
             )}
           </div>

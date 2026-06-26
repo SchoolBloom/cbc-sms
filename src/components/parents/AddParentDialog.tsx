@@ -5,6 +5,7 @@ import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useSchoolScope } from "@/hooks/useSchoolScope";
 import {
   Dialog,
   DialogContent,
@@ -44,6 +45,7 @@ interface AddParentDialogProps {
 export function AddParentDialog({ trigger }: AddParentDialogProps) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
+  const { schoolId } = useSchoolScope();
 
   const form = useForm<ParentFormData>({
     resolver: zodResolver(parentSchema),
@@ -69,6 +71,7 @@ export function AddParentDialog({ trigger }: AddParentDialogProps) {
           address: data.address?.trim() || null,
           occupation: data.occupation?.trim() || null,
           national_id_number: data.national_id_number?.trim() || null,
+          school_id: schoolId,
         })
         .select("id")
         .single();
@@ -80,6 +83,7 @@ export function AddParentDialog({ trigger }: AddParentDialogProps) {
           .select("user_id")
           .ilike("email", normalizedEmail)
           .maybeSingle();
+
         if (profileLookupError) throw profileLookupError;
         if (profile) {
           const { error: profileError } = await supabase
@@ -94,7 +98,11 @@ export function AddParentDialog({ trigger }: AddParentDialogProps) {
 
           const { error: parentUpdateError } = await supabase
             .from("parents")
-            .update({ user_id: profile.user_id, email: normalizedEmail })
+            .update({
+              user_id: profile.user_id,
+              email: normalizedEmail,
+              school_id: schoolId,
+            })
             .eq("id", parentRow.id);
           if (parentUpdateError) throw parentUpdateError;
         }

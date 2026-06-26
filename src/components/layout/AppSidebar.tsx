@@ -28,7 +28,7 @@ const navigationItems: NavItem[] = [
   { name: "Schools", href: "/platform/schools", icon: Network, roles: ["system_admin"] },
   { name: "Learners", href: "/learners", icon: Users, roles: ["admin"] },
   { name: "Classes", href: "/classes", icon: GraduationCap, roles: ["admin", "teacher"] },
-  { name: "SBA Tasks", href: "/sba-tasks", icon: FileText, roles: ["admin", "teacher"] },
+  { name: "SBA Tasks", href: "/sba-tasks", icon: FileText, roles: ["admin"] },
   { name: "Assessments", href: "/assessments", icon: ClipboardCheck, roles: ["admin", "teacher", "parent"] },
   { name: "Teachers", href: "/teachers", icon: UserRound, roles: ["admin"] },
   { name: "Parents", href: "/parents", icon: BookOpen, roles: ["admin"] },
@@ -61,15 +61,15 @@ export function AppSidebarContent({ onNavigate }: AppSidebarContentProps) {
   const location = useLocation();
   const { user, signOut } = useAuth();
 
-  const userRole = user?.role || "teacher";
+  const userRole = user?.role;
 
-  const visibleNavItems = navigationItems.filter((item) =>
-    item.roles.includes(userRole)
-  );
+  const visibleNavItems = userRole
+    ? navigationItems.filter((item) => item.roles.includes(userRole))
+    : [];
 
-  const visibleBottomItems = bottomItems.filter((item) =>
-    item.roles.includes(userRole)
-  );
+  const visibleBottomItems = userRole
+    ? bottomItems.filter((item) => item.roles.includes(userRole))
+    : [];
 
   const handleSignOut = async () => {
     await signOut();
@@ -151,8 +151,8 @@ export function AppSidebarContent({ onNavigate }: AppSidebarContentProps) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-sidebar-foreground truncate">{user?.fullName || "User"}</p>
-            <Badge className={cn("text-[10px] px-1.5 py-0", roleColors[userRole])}>
-              {roleLabels[userRole]}
+            <Badge className={cn("text-[10px] px-1.5 py-0", userRole ? roleColors[userRole] : "bg-muted text-muted-foreground")}>
+              {userRole ? roleLabels[userRole] : "Awaiting Role"}
             </Badge>
           </div>
         </div>

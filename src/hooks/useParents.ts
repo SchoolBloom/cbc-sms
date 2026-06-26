@@ -179,8 +179,18 @@ export function useAssignParentRole() {
       if (!existingRole) {
         const { error: roleError } = await supabase
           .from("user_roles")
-          .insert({ user_id: profile.user_id, role: "parent" });
+          .insert({
+            user_id: profile.user_id,
+            role: "parent",
+            school_id: schoolScope?.schoolId || null,
+          });
         if (roleError) throw roleError;
+      } else {
+        const { error: roleUpdateError } = await supabase
+          .from("user_roles")
+          .update({ school_id: schoolScope?.schoolId || null })
+          .eq("id", existingRole.id);
+        if (roleUpdateError) throw roleUpdateError;
       }
     },
     onSuccess: () => {
@@ -216,6 +226,7 @@ export function useUpdateParent() {
         email?: string | null;
         address?: string | null;
         occupation?: string | null;
+        national_id_number?: string | null;
       };
     }) => {
       const { error } = await supabase.from("parents").update(updates).eq("id", id);

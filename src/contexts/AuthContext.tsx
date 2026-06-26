@@ -3,7 +3,7 @@ import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 
-export type AppRole = "admin" | "teacher" | "parent" | "bursar" | "librarian" | "system_admin";
+export type AppRole = "admin" | "teacher" | "parent" | "system_admin";
 
 interface AuthUser {
   id: string;
@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const normalizedRoles = (data || [])
       .map((row) => String(row.role || "").trim().toLowerCase())
       .filter((role): role is AppRole =>
-        ["admin", "teacher", "parent", "bursar", "librarian", "system_admin"].includes(role as AppRole)
+        ["admin", "teacher", "parent", "system_admin"].includes(role as AppRole)
       );
 
     return Array.from(new Set(normalizedRoles));
@@ -50,10 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resolvePrimaryRole = (roles: AppRole[]): AppRole | null => {
     if (roles.includes("system_admin")) return "system_admin";
     if (roles.includes("admin")) return "admin";
-    if (roles.includes("teacher")) return "teacher";
     if (roles.includes("parent")) return "parent";
-    if (roles.includes("bursar")) return "bursar";
-    if (roles.includes("librarian")) return "librarian";
+    if (roles.includes("teacher")) return "teacher";
     return null;
   };
 

@@ -16,6 +16,7 @@ const parentSchema = z.object({
   email: z.string().email("Please enter a valid email").optional().or(z.literal("")),
   address: z.string().max(200).optional(),
   occupation: z.string().max(100).optional(),
+  national_id_number: z.string().max(50).optional(),
 });
 
 type ParentFormData = z.infer<typeof parentSchema>;
@@ -36,6 +37,7 @@ export function EditParentDialog({ parent, open, onOpenChange }: EditParentDialo
       email: "",
       address: "",
       occupation: "",
+      national_id_number: "",
     },
   });
 
@@ -47,6 +49,7 @@ export function EditParentDialog({ parent, open, onOpenChange }: EditParentDialo
       email: parent.email || "",
       address: parent.address || "",
       occupation: parent.occupation || "",
+      national_id_number: parent.national_id_number || "",
     });
   }, [form, parent]);
 
@@ -62,6 +65,7 @@ export function EditParentDialog({ parent, open, onOpenChange }: EditParentDialo
           phone: data.phone.trim(),
           address: data.address?.trim() || null,
           occupation: data.occupation?.trim() || null,
+          national_id_number: data.national_id_number?.trim() || null,
         },
       },
       {
@@ -122,7 +126,7 @@ export function EditParentDialog({ parent, open, onOpenChange }: EditParentDialo
               )}
             />
 
-            <FormField
+             <FormField
               control={form.control}
               name="occupation"
               render={({ field }) => (
@@ -130,6 +134,20 @@ export function EditParentDialog({ parent, open, onOpenChange }: EditParentDialo
                   <FormLabel>Occupation</FormLabel>
                   <FormControl>
                     <Input placeholder="Teacher, Farmer, etc." {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="national_id_number"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>National ID Number</FormLabel>
+                  <FormControl>
+                    <Input placeholder="12345678" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

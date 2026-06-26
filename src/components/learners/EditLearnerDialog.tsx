@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { Learner, useUpdateLearner } from "@/hooks/useLearners";
 import { SENIOR_SECONDARY_PATHWAYS, isSeniorSecondaryGrade } from "@/lib/schoolCategories";
+import { useSchoolScope } from "@/hooks/useSchoolScope";
 
 const learnerSchema = z.object({
   admission_number: z.string().min(1, "Admission number is required").max(20),
@@ -28,7 +29,14 @@ const learnerSchema = z.object({
   parent_id_secondary: z.string().optional(),
   medical_notes: z.string().max(500).optional(),
 }).refine(
-  (data) => !data.parent_id || !data.parent_id_secondary || data.parent_id !== data.parent_id_secondary,
+  (data) => {
+    const p1 = data.parent_id;
+    const p2 = data.parent_id_secondary;
+    if (p1 && p2 && p1 !== "none" && p2 !== "none" && p1 === p2) {
+      return false;
+    }
+    return true;
+  },
   {
     message: "Second parent must be different from the first.",
     path: ["parent_id_secondary"],
@@ -45,6 +53,7 @@ interface EditLearnerDialogProps {
 
 export function EditLearnerDialog({ learner, open, onOpenChange }: EditLearnerDialogProps) {
   const updateLearner = useUpdateLearner();
+  const { schoolId } = useSchoolScope();
 
   const form = useForm<LearnerFormData>({
     resolver: zodResolver(learnerSchema),
@@ -56,10 +65,10 @@ export function EditLearnerDialog({ learner, open, onOpenChange }: EditLearnerDi
       full_name: "",
       date_of_birth: "",
       gender: undefined,
-      class_id: "",
+      class_id: "none",
       pathway: undefined,
-      parent_id: "",
-      parent_id_secondary: "",
+      parent_id: "none",
+      parent_id_secondary: "none",
       medical_notes: "",
     },
   });
@@ -74,10 +83,10 @@ export function EditLearnerDialog({ learner, open, onOpenChange }: EditLearnerDi
       full_name: learner.full_name,
       date_of_birth: learner.date_of_birth,
       gender: learner.gender as "male" | "female",
-      class_id: learner.class_id || "",
-      pathway: learner.pathway || undefined,
-      parent_id: learner.parent_id || "",
-      parent_id_secondary: learner.parent_id_secondary || "",
+      class_id: learner.class_id || "none",
+      pathway: (learner.pathway as typeof SENIOR_SECONDARY_PATHWAYS[number]) || undefined,
+      parent_id: learner.parent_id || "none",
+      parent_id_secondary: learner.parent_id_secondary || "none",
       medical_notes: learner.medical_notes || "",
     });
   }, [form, learner]);
@@ -86,12 +95,16 @@ export function EditLearnerDialog({ learner, open, onOpenChange }: EditLearnerDi
   const selectedClassId = form.watch("class_id");
 
   const { data: classes = [] } = useQuery({
-    queryKey: ["classes"],
+    queryKey: ["classes", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("classes")
         .select("id, grade, stream")
         .order("grade");
+      if (schoolId) {
+        query = query.eq("school_id", schoolId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
@@ -108,12 +121,16 @@ export function EditLearnerDialog({ learner, open, onOpenChange }: EditLearnerDi
   }, [form, requiresPathway]);
 
   const { data: parents = [] } = useQuery({
-    queryKey: ["parents"],
+    queryKey: ["parents", schoolId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("parents")
         .select("id, full_name, phone")
         .order("full_name");
+      if (schoolId) {
+        query = query.eq("school_id", schoolId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
@@ -137,10 +154,10 @@ export function EditLearnerDialog({ learner, open, onOpenChange }: EditLearnerDi
           full_name: data.full_name.trim(),
           date_of_birth: data.date_of_birth,
           gender: data.gender,
-          class_id: data.class_id || null,
+          class_id: data.class_id && data.class_id !== "none" ? data.class_id : null,
           pathway: requiresPathway ? data.pathway || null : null,
-          parent_id: data.parent_id || null,
-          parent_id_secondary: data.parent_id_secondary || null,
+          parent_id: data.parent_id && data.parent_id !== "none" ? data.parent_id : null,
+          parent_id_secondary: data.parent_id_secondary && data.parent_id_secondary !== "none" ? data.parent_id_secondary : null,
           medical_notes: data.medical_notes?.trim() || null,
         },
       },
@@ -280,6 +297,7 @@ export function EditLearnerDialog({ learner, open, onOpenChange }: EditLearnerDi
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
                       {classes.map((cls) => (
                         <SelectItem key={cls.id} value={cls.id}>
                           {cls.grade} - {cls.stream}
@@ -332,6 +350,7 @@ export function EditLearnerDialog({ learner, open, onOpenChange }: EditLearnerDi
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
                       {parents
                         .filter((parent) => parent.id !== secondaryParentId)
                         .map((parent) => (
@@ -359,6 +378,7 @@ export function EditLearnerDialog({ learner, open, onOpenChange }: EditLearnerDi
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
                       {parents
                         .filter((parent) => parent.id !== primaryParentId)
                         .map((parent) => (

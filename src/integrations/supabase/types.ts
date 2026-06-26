@@ -810,21 +810,39 @@ export type Database = {
           created_at: string
           id: string
           role: Database["public"]["Enums"]["app_role"]
+          school_id: string | null
           user_id: string
         }
         Insert: {
           created_at?: string
           id?: string
           role: Database["public"]["Enums"]["app_role"]
+          school_id?: string | null
           user_id: string
         }
         Update: {
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          school_id?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          }
+        ]
       }
       strands: {
         Row: {
@@ -1288,6 +1306,151 @@ export type Database = {
           }
         ]
       }
+      academic_years: {
+        Row: {
+          id: string
+          label: string
+          start_date: string
+          end_date: string
+          current_term: number | null
+          is_current: boolean | null
+          term1_start: string | null
+          term1_end: string | null
+          term2_start: string | null
+          term2_end: string | null
+          term3_start: string | null
+          term3_end: string | null
+          school_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          label: string
+          start_date: string
+          end_date: string
+          current_term?: number | null
+          is_current?: boolean | null
+          term1_start?: string | null
+          term1_end?: string | null
+          term2_start?: string | null
+          term2_end?: string | null
+          term3_start?: string | null
+          term3_end?: string | null
+          school_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          label?: string
+          start_date?: string
+          end_date?: string
+          current_term?: number | null
+          is_current?: boolean | null
+          term1_start?: string | null
+          term1_end?: string | null
+          term2_start?: string | null
+          term2_end?: string | null
+          term3_start?: string | null
+          term3_end?: string | null
+          school_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "academic_years_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      subjects: {
+        Row: {
+          id: string
+          name: string
+          category: string
+          pathway: string | null
+          code: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          category: string
+          pathway?: string | null
+          code?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          category?: string
+          pathway?: string | null
+          code?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      subject_assignments: {
+        Row: {
+          id: string
+          school_id: string | null
+          subject_id: string
+          teacher_id: string | null
+          class_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          school_id?: string | null
+          subject_id: string
+          teacher_id?: string | null
+          class_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          school_id?: string | null
+          subject_id?: string
+          teacher_id?: string | null
+          class_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subject_assignments_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subject_assignments_school_id_fkey"
+            columns: ["school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subject_assignments_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subject_assignments_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1306,7 +1469,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "teacher" | "parent" | "bursar" | "librarian" | "system_admin"
+      app_role: "admin" | "teacher" | "parent" | "system_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1434,7 +1597,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "teacher", "parent", "bursar", "librarian", "system_admin"],
+      app_role: ["admin", "teacher", "parent", "system_admin"],
     },
   },
 } as const

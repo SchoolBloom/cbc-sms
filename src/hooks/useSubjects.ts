@@ -1,10 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useSchoolScope } from "@/hooks/useSchoolScope";
 
 export interface Subject {
   id: string;
   name: string;
+  category: string;
+  pathway: string | null;
   code: string | null;
   created_at: string;
 }
@@ -47,32 +50,13 @@ export function useSubjectAssignments() {
           class_id,
           teacher_id,
           subjects (name, code),
-          classes (grade, stream)
+          classes (grade, stream),
+          teachers (full_name, email)
         `
         )
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-
-      const teacherIds = Array.from(
-        new Set((data || []).map((row) => row.teacher_id).filter(Boolean))
-      ) as string[];
-
-      let teacherMap = new Map<string, { full_name: string | null; email: string | null }>();
-      if (teacherIds.length > 0) {
-        const { data: profiles, error: profileError } = await supabase
-          .from("profiles")
-          .select("user_id, full_name, email")
-          .in("user_id", teacherIds);
-
-        if (profileError) throw profileError;
-        teacherMap = new Map(
-          (profiles || []).map((profile) => [
-            profile.user_id,
-            { full_name: profile.full_name || null, email: profile.email || null },
-          ])
-        );
-      }
 
       return (data || []).map((row) => ({
         id: row.id,
@@ -81,7 +65,7 @@ export function useSubjectAssignments() {
         teacher_id: row.teacher_id,
         subject: row.subjects ?? null,
         class: row.classes ?? null,
-        teacher: row.teacher_id ? teacherMap.get(row.teacher_id) ?? null : null,
+        teacher: row.teachers ? { full_name: row.teachers.full_name, email: row.teachers.email } : null,
       })) as SubjectAssignment[];
     },
   });
@@ -91,9 +75,21 @@ export function useCreateSubject() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ name, code }: { name: string; code?: string }) => {
+    mutationFn: async ({
+      name,
+      category,
+      pathway = null,
+      code = null,
+    }: {
+      name: string;
+      category: string;
+      pathway?: string | null;
+      code?: string | null;
+    }) => {
       const { error } = await supabase.from("subjects").insert({
         name: name.trim(),
+        category,
+        pathway,
         code: code?.trim() || null,
       });
 
@@ -112,6 +108,7 @@ export function useCreateSubject() {
 
 export function useCreateSubjectAssignment() {
   const queryClient = useQueryClient();
+  const { schoolId } = useSchoolScope();
 
   return useMutation({
     mutationFn: async ({
@@ -123,12 +120,17 @@ export function useCreateSubjectAssignment() {
       classId: string;
       teacherId: string;
     }) => {
+      if (!schoolId) {
+        throw new Error("No school ID found. Please make sure you are logged in and linked to a school.");
+      }
+
       const { error } = await supabase
         .from("subject_assignments")
         .insert({
           subject_id: subjectId,
           class_id: classId,
           teacher_id: teacherId,
+          school_id: schoolId,
         });
 
       if (error) throw error;

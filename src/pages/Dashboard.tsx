@@ -13,16 +13,15 @@ import { useStudentAssessmentRecords } from "@/hooks/useAssessments";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, GraduationCap, TrendingUp, BookOpen, Route, ServerCog, ShieldCheck, FileText } from "lucide-react";
+import { Users, GraduationCap, TrendingUp, BookOpen, Route, ServerCog, ShieldCheck, FileText, Building2 } from "lucide-react";
 
 export default function Dashboard() {
   const { user, selectedChildId, setSelectedChildId } = useRole();
   const { session } = useAuth();
   const { data: academicYear } = useAcademicYear();
-  const { schoolName } = useSchoolScope();
+  const { schoolId, schoolName } = useSchoolScope();
   
   const currentAcademicYear = academicYear?.label || new Date().getFullYear().toString();
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3001";
 
   const selectedChild = user?.children?.find((child) => child.id === selectedChildId);
   const childInitials = selectedChild?.full_name
@@ -36,18 +35,28 @@ export default function Dashboard() {
     return d.toISOString();
   }, []);
 
-  // ================= SYSTEM ADMIN / PLATFORM QUERIES =================
-  const { data: systemSummary } = useQuery({
-    queryKey: ["system-admin-summary"],
+  const { data: systemSchools = [] } = useQuery({
+    queryKey: ["system-admin-schools-dashboard"],
     queryFn: async () => {
-      if (!session?.access_token) throw new Error("Missing session.");
-      const response = await fetch(`${apiUrl}/api/system/summary`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (!response.ok) throw new Error("Failed to load system summary.");
-      return response.json();
+      const { data, error } = await supabase
+        .from("schools")
+        .select("*");
+      if (error) throw error;
+      return (data || []) as any[];
     },
-    enabled: user?.role === "system_admin" && Boolean(session?.access_token),
+    enabled: user?.role === "system_admin",
+  });
+
+  const { data: globalUsersCount = 0 } = useQuery({
+    queryKey: ["system-global-users"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true });
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: user?.role === "system_admin",
   });
 
   const { data: globalLearnersCount = 0 } = useQuery({
@@ -62,65 +71,128 @@ export default function Dashboard() {
     enabled: user?.role === "system_admin",
   });
 
-  // ================= SCHOOL ADMIN QUERIES =================
-  const { data: studentCount = 0 } = useQuery({
-    queryKey: ["dashboard-student-count"],
+  const { data: assignedRolesCount = 0 } = useQuery({
+    queryKey: ["system-roles-count"],
     queryFn: async () => {
       const { count, error } = await supabase
-        .from("learners")
+        .from("user_roles")
         .select("id", { count: "exact", head: true });
       if (error) throw error;
       return count || 0;
     },
-    enabled: user?.role === "admin",
+    enabled: user?.role === "system_admin",
+  });
+
+  const { data: roleBreakdown = {} } = useQuery({
+    queryKey: ["system-role-breakdown"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role");
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      data?.forEach((row) => {
+        counts[row.role] = (counts[row.role] || 0) + 1;
+      });
+      return counts;
+    },
+    enabled: user?.role === "system_admin",
+  });
+
+  const systemMetrics = useMemo(() => {
+    const totalSchools = systemSchools.length;
+    const activeSchools = systemSchools.filter((s) => s.active_status).length;
+    const onboardingSchools = systemSchools.filter((s) => s.status === "onboarding").length;
+    const schoolsWithBasic = systemSchools.filter((s) =>
+      s.school_categories?.includes("primary_junior_secondary") || s.levels_offered?.includes("primary_junior_secondary")
+    ).length;
+    const schoolsWithSenior = systemSchools.filter((s) =>
+      s.school_categories?.includes("senior_secondary") || s.levels_offered?.includes("senior_secondary")
+    ).length;
+    const schoolsWithBoth = systemSchools.filter((s) =>
+      (s.school_categories?.includes("primary_junior_secondary") || s.levels_offered?.includes("primary_junior_secondary")) &&
+      (s.school_categories?.includes("senior_secondary") || s.levels_offered?.includes("senior_secondary"))
+    ).length;
+
+    return {
+      totalSchools,
+      activeSchools,
+      onboardingSchools,
+      schoolsWithBasic,
+      schoolsWithSenior,
+      schoolsWithBoth,
+    };
+  }, [systemSchools]);
+
+  // ================= SCHOOL ADMIN QUERIES =================
+  const { data: studentCount = 0 } = useQuery({
+    queryKey: ["dashboard-student-count", schoolId],
+    queryFn: async () => {
+      if (!schoolId) return 0;
+      const { count, error } = await supabase
+        .from("learners")
+        .select("id", { count: "exact", head: true })
+        .eq("school_id", schoolId);
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: user?.role === "admin" && !!schoolId,
   });
 
   const { data: classCount = 0 } = useQuery({
-    queryKey: ["dashboard-class-count"],
+    queryKey: ["dashboard-class-count", schoolId],
     queryFn: async () => {
+      if (!schoolId) return 0;
       const { count, error } = await supabase
         .from("classes")
-        .select("id", { count: "exact", head: true });
+        .select("id", { count: "exact", head: true })
+        .eq("school_id", schoolId);
       if (error) throw error;
       return count || 0;
     },
-    enabled: user?.role === "admin",
+    enabled: user?.role === "admin" && !!schoolId,
   });
 
   const { data: teacherCount = 0 } = useQuery({
-    queryKey: ["dashboard-teacher-count"],
+    queryKey: ["dashboard-teacher-count", schoolId],
     queryFn: async () => {
+      if (!schoolId) return 0;
       const { count, error } = await supabase
         .from("teachers")
-        .select("id", { count: "exact", head: true });
+        .select("id", { count: "exact", head: true })
+        .eq("school_id", schoolId);
       if (error) throw error;
       return count || 0;
     },
-    enabled: user?.role === "admin",
+    enabled: user?.role === "admin" && !!schoolId,
   });
 
   const { data: parentCount = 0 } = useQuery({
-    queryKey: ["dashboard-parent-count"],
+    queryKey: ["dashboard-parent-count", schoolId],
     queryFn: async () => {
+      if (!schoolId) return 0;
       const { count, error } = await supabase
         .from("parents")
-        .select("id", { count: "exact", head: true });
+        .select("id", { count: "exact", head: true })
+        .eq("school_id", schoolId);
       if (error) throw error;
       return count || 0;
     },
-    enabled: user?.role === "admin",
+    enabled: user?.role === "admin" && !!schoolId,
   });
 
   const { data: allAssessments = [] } = useQuery({
-    queryKey: ["dashboard-admin-assessments"],
+    queryKey: ["dashboard-admin-assessments", schoolId],
     queryFn: async () => {
+      if (!schoolId) return [];
       const { data, error } = await supabase
         .from("assessment_records")
-        .select("rubric_score");
+        .select("rubric_score")
+        .eq("school_id", schoolId);
       if (error) throw error;
       return data || [];
     },
-    enabled: user?.role === "admin",
+    enabled: user?.role === "admin" && !!schoolId,
   });
 
   // ================= TEACHER QUERIES =================
@@ -276,60 +348,95 @@ export default function Dashboard() {
       {/* ================= SUPER ADMIN VIEW ================= */}
       {user?.role === "system_admin" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
-              title="Onboarded Schools"
-              value={systemSummary?.metrics?.totalSchools || 0}
-              subtitle="Active academic licenses"
-              icon={GraduationCap}
+              title="Registered Schools"
+              value={systemMetrics.totalSchools}
+              subtitle="Active licenses"
+              icon={Building2}
               variant="primary"
             />
             <StatCard
-              title="Global User Accounts"
-              value={systemSummary?.metrics?.totalSignups || 0}
-              subtitle="Provisioned users"
+              title="Platform Signups"
+              value={globalUsersCount}
+              subtitle="Total users provisioned"
               icon={Users}
             />
             <StatCard
-              title="Global Learners Registered"
+              title="Assigned Roles"
+              value={assignedRolesCount}
+              subtitle="Mapped roles"
+              icon={ShieldCheck}
+            />
+            <StatCard
+              title="Total Learners"
               value={globalLearnersCount}
-              subtitle="Enrolled students"
+              subtitle="Students catered for"
               icon={BookOpen}
               variant="success"
             />
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <ServerCog className="w-5 h-5 text-primary" />
-                System Onboarding Status
-              </CardTitle>
-              <CardDescription>
-                Summary of configuration profiles across primary, junior secondary, and senior secondary schools.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-4 bg-muted/40 rounded-xl">
-                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider block">Active Schools</span>
-                  <span className="text-2xl font-bold mt-1 block">{systemSummary?.metrics?.activeSchools || 0}</span>
-                </div>
-                <div className="p-4 bg-muted/40 rounded-xl">
-                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider block">Onboarding Schools</span>
-                  <span className="text-2xl font-bold mt-1 block">{systemSummary?.metrics?.onboardingSchools || 0}</span>
-                </div>
-                <div className="p-4 bg-muted/40 rounded-xl">
-                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider block">Basic Education Only</span>
-                  <span className="text-2xl font-bold mt-1 block">{systemSummary?.metrics?.schoolsWithBasic || 0}</span>
-                </div>
-                <div className="p-4 bg-muted/40 rounded-xl">
-                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider block">Senior Secondary Capable</span>
-                  <span className="text-2xl font-bold mt-1 block">{systemSummary?.metrics?.schoolsWithSenior || 0}</span>
-                </div>
+          <div className="bg-card rounded-xl border border-border/50 p-6">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 className="font-display font-semibold text-foreground">System Usage</h2>
+                <p className="text-sm text-muted-foreground">Current platform allocation, school coverage, and category mix.</p>
               </div>
-            </CardContent>
-          </Card>
+              <Badge variant="outline">Supabase Connected</Badge>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              {[
+                { label: "PP1 to Grade 9 schools", value: systemMetrics.schoolsWithBasic },
+                { label: "Grade 10 to 12 schools", value: systemMetrics.schoolsWithSenior },
+                { label: "Schools with both", value: systemMetrics.schoolsWithBoth },
+                { label: "Total Learners Registered", value: globalLearnersCount },
+                { label: "System admins", value: roleBreakdown.system_admin || 0 },
+                { label: "School admins", value: roleBreakdown.admin || 0 },
+                { label: "Teachers", value: roleBreakdown.teacher || 0 },
+                { label: "Parents", value: roleBreakdown.parent || 0 },
+              ].map((item) => (
+                <div key={item.label} className="rounded-xl bg-muted/40 px-4 py-3">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</p>
+                  <p className="mt-2 text-2xl font-display font-bold text-foreground">{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground mb-2">Registered Schools Snapshot</h3>
+              {systemSchools.length > 0 ? (
+                systemSchools.slice(0, 6).map((school) => (
+                  <div key={school.id} className="flex flex-col gap-2 rounded-xl border border-border/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between bg-card hover:bg-muted/10 transition-colors">
+                    <div>
+                      <p className="font-medium text-foreground">{school.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {school.code}
+                        {(school.county || school.subcounty) &&
+                          ` • ${[school.subcounty, school.county].filter(Boolean).join(", ")}`}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {(school.school_categories || []).map((category: string) => (
+                          <Badge key={category} variant="outline">
+                            {category === "primary_junior_secondary" ? "PP1 to Grade 9" : "Grade 10 to 12"}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No schools registered yet.</p>
+              )}
+            </div>
+            <div className="mt-6 rounded-xl border border-border/50 bg-muted/30 px-4 py-3">
+              <p className="font-medium text-foreground">System admin access</p>
+              <p className="text-sm text-muted-foreground">
+                This role can register schools and their administrators, but it remains limited to overall system performance and onboarding visibility.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 

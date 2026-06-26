@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 
-export type UserRole = "admin" | "teacher" | "parent" | "bursar" | "librarian" | "system_admin";
+export type UserRole = "admin" | "teacher" | "parent" | "system_admin";
 
 interface RoleUser {
   id: string;
@@ -81,18 +81,6 @@ const rolePermissions: Record<UserRole, Permission[]> = {
     "library:read",
     "notices:read",
     "reports:read",
-  ],
-  bursar: [
-    "students:read",
-    "fees:read", "fees:write", "fees:collect",
-    "parents:read",
-    "reports:read", "reports:generate",
-  ],
-  librarian: [
-    "students:read",
-    "library:read", "library:write", "library:manage",
-    "reports:read", "reports:generate",
-    "settings:read",
   ],
   system_admin: [
     "settings:read", "settings:write",
@@ -237,8 +225,6 @@ export function getRoleLabel(role: UserRole): string {
     admin: "Administrator",
     teacher: "Teacher",
     parent: "Parent/Guardian",
-    bursar: "Accounts/Bursar",
-    librarian: "Librarian",
     system_admin: "System Admin",
   };
   return labels[role];
@@ -249,8 +235,6 @@ export function getRoleColor(role: UserRole): string {
     admin: "bg-primary text-primary-foreground",
     teacher: "bg-info text-info-foreground",
     parent: "bg-success text-success-foreground",
-    bursar: "bg-accent text-accent-foreground",
-    librarian: "bg-secondary text-secondary-foreground",
     system_admin: "bg-warning text-warning-foreground",
   };
   return colors[role];

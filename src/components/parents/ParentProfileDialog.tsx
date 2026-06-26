@@ -36,6 +36,10 @@ export function ParentProfileDialog({ parent, open, onOpenChange }: ParentProfil
               <p className="font-medium text-foreground">{parent.email || "-"}</p>
             </div>
             <div>
+              <p className="text-xs text-muted-foreground">National ID Number</p>
+              <p className="font-medium text-foreground">{parent.national_id_number || "-"}</p>
+            </div>
+            <div>
               <p className="text-xs text-muted-foreground">Occupation</p>
               <p className="font-medium text-foreground">{parent.occupation || "-"}</p>
             </div>

@@ -53,8 +53,6 @@ const roleDefaultRoutes: Record<AppRole, string> = {
   admin: "/",
   teacher: "/",
   parent: "/",
-  bursar: "/",
-  librarian: "/",
   system_admin: "/platform/schools",
 };
 
@@ -134,7 +132,7 @@ function AppRoutes() {
       <Route path="/platform/schools" element={<RoleProtectedRoute allowedRoles={["system_admin"]}><PlatformSchools /></RoleProtectedRoute>} />
       <Route path="/learners" element={<RoleProtectedRoute allowedRoles={["admin"]}><Learners /></RoleProtectedRoute>} />
       <Route path="/classes" element={<RoleProtectedRoute allowedRoles={["admin", "teacher"]}><Classes /></RoleProtectedRoute>} />
-      <Route path="/sba-tasks" element={<RoleProtectedRoute allowedRoles={["admin", "teacher"]}><SBATasks /></RoleProtectedRoute>} />
+      <Route path="/sba-tasks" element={<RoleProtectedRoute allowedRoles={["admin"]}><SBATasks /></RoleProtectedRoute>} />
       <Route path="/assessments" element={<RoleProtectedRoute allowedRoles={["admin", "teacher", "parent"]}><Assessments /></RoleProtectedRoute>} />
       <Route path="/parents" element={<RoleProtectedRoute allowedRoles={["admin"]}><Parents /></RoleProtectedRoute>} />
       <Route path="/teachers" element={<RoleProtectedRoute allowedRoles={["admin"]}><Teachers /></RoleProtectedRoute>} />

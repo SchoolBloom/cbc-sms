@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-import { Student, useUpdateStudent } from "@/hooks/useStudents";
+import { Learner, useUpdateLearner } from "@/hooks/useLearners";
 import { SENIOR_SECONDARY_PATHWAYS, isSeniorSecondaryGrade } from "@/lib/schoolCategories";
 
 const studentSchema = z.object({
@@ -36,13 +36,13 @@ const studentSchema = z.object({
 type StudentFormData = z.infer<typeof studentSchema>;
 
 interface EditStudentDialogProps {
-  student: Student | null;
+  student: Learner | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 export function EditStudentDialog({ student, open, onOpenChange }: EditStudentDialogProps) {
-  const updateStudent = useUpdateStudent();
+  const updateStudent = useUpdateLearner();
 
   const form = useForm<StudentFormData>({
     resolver: zodResolver(studentSchema),
@@ -69,7 +69,7 @@ export function EditStudentDialog({ student, open, onOpenChange }: EditStudentDi
       date_of_birth: student.date_of_birth,
       gender: student.gender as "male" | "female",
       class_id: student.class_id || "",
-      pathway: student.pathway || undefined,
+      pathway: (student.pathway as any) || undefined,
       parent_id: student.parent_id || "",
       parent_id_secondary: student.parent_id_secondary || "",
       medical_notes: student.medical_notes || "",

@@ -4,7 +4,7 @@ import { UserPlus, FileText, Route, GraduationCap } from "lucide-react";
 
 const actions = [
   { name: "Admit Learner", icon: UserPlus, href: "/learners", color: "bg-primary/10 text-primary", roles: ["admin"] },
-  { name: "SBA Tasks", icon: GraduationCap, href: "/sba-tasks", color: "bg-warning/10 text-warning", roles: ["admin", "teacher"] },
+  { name: "SBA Tasks", icon: GraduationCap, href: "/sba-tasks", color: "bg-warning/10 text-warning", roles: ["admin"] },
   { name: "Record Assessment", icon: FileText, href: "/assessments", color: "bg-info/10 text-info", roles: ["admin", "teacher"] },
   { name: "SSS Pathways", icon: Route, href: "/pathways", color: "bg-success/10 text-success", roles: ["admin", "parent"] },
 ];
