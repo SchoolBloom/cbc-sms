@@ -87,9 +87,9 @@ export function useCreateSchool() {
       queryClient.invalidateQueries({ queryKey: ["platform-schools"] });
       toast.success("School registered successfully");
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error("Error creating school:", error);
-      toast.error("Failed to register school");
+      toast.error(error.message || "Failed to register school");
     },
   });
 }

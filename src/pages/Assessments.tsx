@@ -1,6 +1,7 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,8 +14,6 @@ import {
   useAssessmentRecords,
   useCreateAssessmentRecord,
   useStudentAssessmentRecords,
-  useStrands,
-  useSubStrands,
   getLearningAreasForCategories,
   PERFORMANCE_LEVELS,
 } from "@/hooks/useAssessments";
@@ -49,8 +48,8 @@ export default function Assessments() {
   const [term, setTerm] = useState("1");
   const [year, setYear] = useState(new Date().getFullYear().toString());
   const [learningArea, setLearningArea] = useState("");
-  const [strandId, setStrandId] = useState("");
-  const [subStrandId, setSubStrandId] = useState("");
+  const [strandName, setStrandName] = useState("");
+  const [subStrandName, setSubStrandName] = useState("");
   const [rubricScore, setRubricScore] = useState<any>("");
   const [qualitativeNotes, setQualitativeNotes] = useState("");
   const [coreCompetencyNotes, setCoreCompetencyNotes] = useState("");
@@ -70,15 +69,6 @@ export default function Assessments() {
   const { data: classes = [] } = useClasses();
   const { data: students = [] } = useLearners();
   const { data: subjectAssignments = [] } = useSubjectAssignments();
-
-  // Selected student's grade to filter strands
-  const selectedStudentClassId = students.find(s => s.id === studentId)?.class_id;
-  const selectedStudentClass = classes.find(c => c.id === selectedStudentClassId || c.id === classId);
-  const studentGrade = selectedStudentClass?.grade;
-
-  // Query strands and sub-strands
-  const { data: strands = [] } = useStrands(learningArea || undefined, studentGrade || undefined);
-  const { data: subStrands = [] } = useSubStrands(strandId || undefined);
 
   const createRecord = useCreateAssessmentRecord();
 
@@ -181,28 +171,29 @@ export default function Assessments() {
 
   // Reset strand and sub-strand when learning area changes
   useEffect(() => {
-    setStrandId("");
-    setSubStrandId("");
+    setStrandName("");
+    setSubStrandName("");
   }, [learningArea]);
 
   // Reset sub-strand when strand changes
   useEffect(() => {
-    setSubStrandId("");
-  }, [strandId]);
+    setSubStrandName("");
+  }, [strandName]);
 
   const handleSaveAssessment = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!canWrite) return;
-    if (!studentId || !strandId || !subStrandId || !rubricScore || !term || !year) {
+    if (!studentId || !strandName || !subStrandName || !rubricScore || !term || !year) {
       return;
     }
 
     createRecord.mutate(
       {
         learner_id: studentId,
-        strand_id: strandId,
-        sub_strand_id: subStrandId,
+        strand_name: strandName,
+        sub_strand_name: subStrandName,
+        learning_area: learningArea,
         teacher_id: user.id,
         term: parseInt(term),
         year,
@@ -215,8 +206,8 @@ export default function Assessments() {
         onSuccess: () => {
           setStudentId("");
           setLearningArea("");
-          setStrandId("");
-          setSubStrandId("");
+          setStrandName("");
+          setSubStrandName("");
           setRubricScore("");
           setQualitativeNotes("");
           setCoreCompetencyNotes("");
@@ -230,7 +221,7 @@ export default function Assessments() {
   if (user.role === "parent") {
     // Group assessments by learning area (most recent for each)
     const latestBySubject = studentRecords.reduce((acc, record) => {
-      const area = record.sub_strand?.strand?.learning_area || "Other";
+      const area = record.learning_area || "Other";
       if (!acc[area] || new Date(record.created_at) > new Date(acc[area].created_at)) {
         acc[area] = record;
       }
@@ -261,8 +252,8 @@ export default function Assessments() {
         ...studentRecords.map((record) => {
           const row = [
             selectedChild?.admission_number || "",
-            record.sub_strand?.strand?.code || "",
-            record.sub_strand?.code || "",
+            record.strand_name || "",
+            record.sub_strand_name || "",
             record.term || "",
             record.year || "",
             record.rubric_score || "",
@@ -364,7 +355,7 @@ export default function Assessments() {
           <div className="mb-6">
             <CompetencyRadarChart
               data={studentRecords.map((a) => ({
-                subject: a.sub_strand?.strand?.learning_area || "Other",
+                subject: a.learning_area || "Other",
                 level: a.rubric_score,
                 score: a.rubric_score === "Exceeds" ? 4 : a.rubric_score === "Meets" ? 3 : a.rubric_score === "Approaches" ? 2 : 1,
               }))}
@@ -382,9 +373,9 @@ export default function Assessments() {
                 <div key={record.id} className="px-5 py-4">
                   <div className="flex items-center justify-between mb-2">
                     <div className="space-y-1">
-                      <span className="font-medium text-foreground">{record.sub_strand?.strand?.learning_area}</span>
+                      <span className="font-medium text-foreground">{record.learning_area}</span>
                       <p className="text-xs text-muted-foreground">
-                        {record.sub_strand?.strand?.name} <ArrowRight className="inline w-3 h-3" /> {record.sub_strand?.name}
+                        {record.strand_name} <ArrowRight className="inline w-3 h-3" /> {record.sub_strand_name}
                       </p>
                     </div>
                     <Badge className={getRubricBadgeColor(record.rubric_score)}>
@@ -482,41 +473,29 @@ export default function Assessments() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Strand</label>
-              <Select value={strandId} onValueChange={setStrandId} disabled={!learningArea}>
-                <SelectTrigger>
-                  <SelectValue placeholder={learningArea ? "Select strand" : "Select learning area first"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {strands.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.code} - {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                value={strandName}
+                onChange={(e) => setStrandName(e.target.value)}
+                placeholder="Enter strand name"
+                disabled={!learningArea}
+              />
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Sub-Strand</label>
-              <Select value={subStrandId} onValueChange={setSubStrandId} disabled={!strandId}>
-                <SelectTrigger>
-                  <SelectValue placeholder={strandId ? "Select sub-strand" : "Select strand first"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {subStrands.map((ss) => (
-                    <SelectItem key={ss.id} value={ss.id}>
-                      {ss.code} - {ss.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                value={subStrandName}
+                onChange={(e) => setSubStrandName(e.target.value)}
+                placeholder="Enter sub-strand name"
+                disabled={!strandName}
+              />
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Rubric Score</label>
-              <Select value={rubricScore} onValueChange={setRubricScore} disabled={!subStrandId}>
+              <Select value={rubricScore} onValueChange={setRubricScore} disabled={!subStrandName}>
                 <SelectTrigger>
-                  <SelectValue placeholder={subStrandId ? "Select rating" : "Select sub-strand first"} />
+                  <SelectValue placeholder={subStrandName ? "Select rating" : "Enter sub-strand first"} />
                 </SelectTrigger>
                 <SelectContent>
                   {rubricScores.map((score) => (
@@ -597,8 +576,8 @@ export default function Assessments() {
               disabled={
                 !canWrite ||
                 !studentId ||
-                !strandId ||
-                !subStrandId ||
+                !strandName ||
+                !subStrandName ||
                 !rubricScore ||
                 createRecord.isPending
               }
@@ -633,10 +612,10 @@ export default function Assessments() {
                   <TrendingUp className="w-5 h-5 text-primary" />
                   <div>
                     <p className="font-medium text-foreground">
-                      {record.learner?.full_name || "Unknown"} - {record.sub_strand?.strand?.learning_area}
+                      {record.learner?.full_name || "Unknown"} - {record.learning_area}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {record.sub_strand?.strand?.name} <ArrowRight className="inline w-3 h-3 text-muted-foreground" /> {record.sub_strand?.name} • Year {record.year} Term {record.term}
+                      {record.strand_name} <ArrowRight className="inline w-3 h-3 text-muted-foreground" /> {record.sub_strand_name} • Year {record.year} Term {record.term}
                     </p>
                   </div>
                 </div>
@@ -735,15 +714,15 @@ export default function Assessments() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-xs text-muted-foreground">Learning Area</p>
-                  <p className="font-medium text-foreground">{selectedRecord.sub_strand?.strand?.learning_area}</p>
+                  <p className="font-medium text-foreground">{selectedRecord.learning_area}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Strand</p>
-                  <p className="font-medium text-foreground">{selectedRecord.sub_strand?.strand?.name}</p>
+                  <p className="font-medium text-foreground">{selectedRecord.strand_name}</p>
                 </div>
                 <div className="col-span-2">
                   <p className="text-xs text-muted-foreground">Sub-Strand</p>
-                  <p className="font-medium text-foreground">{selectedRecord.sub_strand?.name}</p>
+                  <p className="font-medium text-foreground">{selectedRecord.sub_strand_name}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Term & Year</p>

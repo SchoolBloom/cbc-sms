@@ -111,23 +111,21 @@ export default function SBATasks() {
   }, [subjects, selectedClassCategory]);
 
   const catalogueSubjects = useMemo(() => {
-    if (!selectedClassCategory) return [];
-    return subjects.filter((subject) => {
-      // Filter by the selected class's category
-      if (subject.category !== selectedClassCategory) {
-        return false;
-      }
+    // Filter subjects by the categories supported by the school first
+    let filtered = subjects.filter((subject) => categories.includes(subject.category as any));
+
+    // If a class is selected, filter by the class category
+    if (selectedClassCategory) {
+      filtered = filtered.filter((subject) => subject.category === selectedClassCategory);
       
       // Filter by pathway if class is senior secondary
       if (selectedClassCategory === "senior_secondary" && classPathway) {
-        if (subject.pathway && subject.pathway !== classPathway) {
-          return false;
-        }
+        filtered = filtered.filter((subject) => !subject.pathway || subject.pathway === classPathway);
       }
-      
-      return true;
-    });
-  }, [subjects, selectedClassCategory, classPathway]);
+    }
+    
+    return filtered;
+  }, [subjects, categories, selectedClassCategory, classPathway]);
 
   const filteredCatalogueSubjects = catalogueSubjects;
 
@@ -221,7 +219,7 @@ export default function SBATasks() {
                 <SelectContent>
                   {filteredCatalogueSubjects.map((subject) => (
                     <SelectItem key={subject.id} value={subject.id}>
-                      {subject.name}
+                      {subject.name} ({subject.category === "senior_secondary" ? "SSS" : "Primary & JSS"}) {subject.pathway ? `- ${getPathwayDisplayName(subject.pathway)}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>

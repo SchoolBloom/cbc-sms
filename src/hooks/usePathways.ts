@@ -10,6 +10,7 @@ export interface PathwayPreference {
   academic_year: string;
   recorded_by: string | null;
   preferred_school_name: string | null;
+  is_locked: boolean;
 }
 
 export interface PathwayAllocation {
@@ -186,6 +187,39 @@ export function useSavePathwayAllocation() {
     onError: (error: Error) => {
       console.error("Error saving allocation:", error);
       toast.error(error.message || "Failed to save pathway allocation");
+    },
+  });
+}
+
+export function useSetPathwayPreferencesLock() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      learnerId,
+      academicYear,
+      isLocked,
+    }: {
+      learnerId: string;
+      academicYear: string;
+      isLocked: boolean;
+    }) => {
+      const { error } = await supabase.rpc("set_pathway_preferences_lock", {
+        target_learner_id: learnerId,
+        target_academic_year: academicYear,
+        lock_state: isLocked,
+      });
+
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["pathway-preferences", variables.learnerId] });
+      queryClient.invalidateQueries({ queryKey: ["all-pathway-preferences"] });
+      toast.success(variables.isLocked ? "Preferences locked" : "Preferences unlocked");
+    },
+    onError: (error: Error) => {
+      console.error("Error toggling preference lock:", error);
+      toast.error(error.message || "Failed to change lock state");
     },
   });
 }

@@ -53,7 +53,7 @@ const roleDefaultRoutes: Record<AppRole, string> = {
   admin: "/",
   teacher: "/",
   parent: "/",
-  system_admin: "/platform/schools",
+  system_admin: "/",
 };
 
 function getDefaultRoute(role: AppRole | null | undefined) {

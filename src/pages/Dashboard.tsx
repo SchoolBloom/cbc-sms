@@ -220,7 +220,7 @@ export default function Dashboard() {
   // Performance mapping for parent view (latest score per subject)
   const latestBySubject = useMemo(() => {
     return parentAssessments.reduce((acc, record) => {
-      const area = record.sub_strand?.strand?.learning_area || "Other";
+      const area = record.learning_area || "Other";
       if (!acc[area] || new Date(record.created_at) > new Date(acc[area].created_at)) {
         acc[area] = record;
       }
@@ -295,26 +295,36 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatCard
-                title="Total Schools"
-                value={platformStats?.totalSchools || 0}
-                subtitle="Registered schools system-wide"
-                icon={Building2}
-                variant="primary"
-              />
-              <StatCard
-                title="Total Learners"
-                value={platformStats?.totalLearners || 0}
-                subtitle="Active learners platform-wide"
-                icon={GraduationCap}
-                variant="success"
-              />
-              <StatCard
-                title="Total Users"
-                value={platformStats?.totalUsers || 0}
-                subtitle="Provisioned active accounts"
-                icon={Users}
-              />
+              <Card className="bg-card hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Schools</CardTitle>
+                  <Building2 className="h-4 w-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold font-display">{platformStats?.totalSchools || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Registered schools system-wide</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-card hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Learners</CardTitle>
+                  <GraduationCap className="h-4 w-4 text-success" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold font-display">{platformStats?.totalLearners || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Active learners platform-wide</p>
+                </CardContent>
+              </Card>
+              <Card className="bg-card hover:shadow-md transition-shadow">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Users</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold font-display">{platformStats?.totalUsers || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Provisioned active accounts</p>
+                </CardContent>
+              </Card>
             </div>
           )}
 
@@ -695,10 +705,10 @@ export default function Dashboard() {
                           <div key={record.id} className="flex items-center justify-between p-3.5 bg-muted/40 rounded-xl">
                             <div>
                               <p className="font-semibold text-sm text-foreground">
-                                {record.sub_strand?.strand?.learning_area || "Other"}
+                                {record.learning_area || "Other"}
                               </p>
                               <p className="text-xs text-muted-foreground mt-0.5">
-                                {record.sub_strand?.name || "Sub-strand remarks"}
+                                {record.sub_strand_name || "Sub-strand remarks"}
                               </p>
                             </div>
                             <div className="text-right">

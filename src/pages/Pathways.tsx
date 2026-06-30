@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,11 +19,14 @@ import {
 import { useRole } from "@/contexts/RoleContext";
 import { useLearners } from "@/hooks/useLearners";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
+import { useSchoolScope } from "@/hooks/useSchoolScope";
+import { getSubjectsForPathway } from "@/lib/pathwaySubjects";
 import { 
   usePathwayPreferences, 
   usePathwayAllocation, 
   useSavePathwayPreferences, 
-  useSavePathwayAllocation 
+  useSavePathwayAllocation,
+  useSetPathwayPreferencesLock
 } from "@/hooks/usePathways";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -70,13 +75,17 @@ export default function Pathways() {
   const currentAcademicYear = academicYear?.label || new Date().getFullYear().toString();
 
   const { data: learners = [], isLoading: loadingLearners } = useLearners();
+  const { supportsPrimaryJunior, supportsSenior } = useSchoolScope();
 
-  // Filter Grade 9 learners
+  // Filter JSS (Grade 9) and SSS (Grade 10-12) learners based on school capability
   const grade9Learners = useMemo(() => {
-    return learners.filter(
-      (l) => l.classes?.grade === "Grade 9" || l.grade === "Grade 9"
-    );
-  }, [learners]);
+    return learners.filter((l) => {
+      const grade = l.classes?.grade || l.grade || "";
+      const isGrade9 = grade === "Grade 9";
+      const isSSS = ["Grade 10", "Grade 11", "Grade 12"].includes(grade);
+      return (isGrade9 && supportsPrimaryJunior) || (isSSS && supportsSenior);
+    });
+  }, [learners, supportsPrimaryJunior, supportsSenior]);
 
   // If parent, select their linked child as active learner
   const activeLearnerId = isAdmin ? selectedLearnerId : (selectedChildId || "");
@@ -87,7 +96,13 @@ export default function Pathways() {
     } else {
       return user?.children?.find((c) => c.id === selectedChildId);
     }
-  }, [isAdmin, selectedLearnerId, grade9Learners, user?.children, selectedChildId]);
+  }, [isAdmin, selectedLearnerId, grade9Learners, user?.children, selectedChildId]) as any;
+
+  const isLearnerSSS = useMemo(() => {
+    if (!activeLearner) return false;
+    const grade = activeLearner.classes?.grade || activeLearner.grade || "";
+    return ["Grade 10", "Grade 11", "Grade 12"].includes(grade);
+  }, [activeLearner]);
 
   // Query preferences & allocation for the active learner
   const { data: preferences = [], isLoading: loadingPref } = usePathwayPreferences(activeLearnerId);
@@ -121,6 +136,26 @@ export default function Pathways() {
   // Mutations
   const savePreferencesMutation = useSavePathwayPreferences();
   const saveAllocationMutation = useSavePathwayAllocation();
+  const lockMutation = useSetPathwayPreferencesLock();
+
+  const isPreferencesLocked = useMemo(() => {
+    return preferences && preferences.length > 0 && preferences.some((p) => p.is_locked);
+  }, [preferences]);
+
+  const [isLockedState, setIsLockedState] = useState(false);
+
+  useEffect(() => {
+    setIsLockedState(isPreferencesLocked);
+  }, [isPreferencesLocked]);
+
+  const handleToggleLock = (checked: boolean) => {
+    if (!activeLearnerId) return;
+    lockMutation.mutate({
+      learnerId: activeLearnerId,
+      academicYear: currentAcademicYear,
+      isLocked: checked,
+    });
+  };
 
   // Sync forms with database values
   useEffect(() => {
@@ -303,11 +338,17 @@ export default function Pathways() {
       {isAdmin ? (
         // ================= ADMINISTRATOR VIEW =================
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column: Grade 9 Learners List */}
+          {/* Left Column: Pathway Learners List */}
           <Card className="lg:col-span-4 h-[calc(100vh-14rem)] flex flex-col overflow-hidden">
             <CardHeader className="p-4 border-b">
               <CardTitle className="text-base flex items-center justify-between">
-                <span>Grade 9 Students</span>
+                <span>
+                  {supportsPrimaryJunior && supportsSenior 
+                    ? "JSS & SSS Students" 
+                    : supportsSenior 
+                    ? "Senior Secondary Students" 
+                    : "Grade 9 JSS Students"}
+                </span>
                 <Badge variant="outline">{grade9Learners.length} Registered</Badge>
               </CardTitle>
               <div className="relative mt-2">
@@ -327,7 +368,7 @@ export default function Pathways() {
                 </div>
               ) : filteredGrade9Learners.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground text-sm">
-                  No Grade 9 learners found.
+                  No students found matching categories.
                 </div>
               ) : (
                 <ScrollArea className="h-full">
@@ -350,6 +391,8 @@ export default function Pathways() {
                             </p>
                             <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
                               <span className="font-mono">{learner.admission_number}</span>
+                              <span>•</span>
+                              <span>{learner.classes?.grade || learner.grade || "Grade 9"}</span>
                               <span>•</span>
                               <span>{learner.classes?.stream || "No stream"}</span>
                             </p>
@@ -375,9 +418,9 @@ export default function Pathways() {
               <Card className="h-full flex items-center justify-center border-dashed py-24">
                 <CardContent className="text-center">
                   <GraduationCap className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="font-semibold text-lg">No Learner Selected</h3>
+                   <h3 className="font-semibold text-lg">No Student Selected</h3>
                   <p className="text-sm text-muted-foreground max-w-sm mt-1">
-                    Select a Grade 9 student from the sidebar to record pathway preferences and KJSEA placements.
+                    Select a student from the sidebar to record pathway preferences, placements, and secondary school assignments.
                   </p>
                 </CardContent>
               </Card>
@@ -406,15 +449,39 @@ export default function Pathways() {
                 )}
 
                 {/* Main Cards: Preferences & Allocation */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className={cn("grid grid-cols-1 gap-6", !isLearnerSSS && "md:grid-cols-2")}>
                   {/* Preferences Card */}
-                  <Card>
-                    <form onSubmit={handleSavePreferences}>
+                  {!isLearnerSSS && (
+                    <Card>
+                      <form onSubmit={handleSavePreferences}>
                       <CardHeader>
-                        <CardTitle className="text-base flex items-center gap-2">
-                          <Route className="w-5 h-5 text-primary" />
-                          Ranked Preferences
-                        </CardTitle>
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <Route className="w-5 h-5 text-primary" />
+                            Ranked Preferences
+                          </CardTitle>
+                          {isAdmin && preferences.length > 0 && !allocation?.finalized && (
+                            <div className="flex items-center gap-2 border bg-muted/40 px-2 py-1.5 rounded-lg">
+                              <Switch
+                                id="lock-preferences"
+                                checked={isLockedState}
+                                onCheckedChange={handleToggleLock}
+                                disabled={lockMutation.isPending}
+                              />
+                              <Label htmlFor="lock-preferences" className="text-xs flex items-center gap-1 cursor-pointer font-medium">
+                                {isLockedState ? (
+                                  <>
+                                    <Lock className="w-3 h-3 text-warning" /> Locked
+                                  </>
+                                ) : (
+                                  <>
+                                    <Unlock className="w-3 h-3 text-muted-foreground" /> Lock
+                                  </>
+                                )}
+                              </Label>
+                            </div>
+                          )}
+                        </div>
                         <CardDescription>
                           Record the student's top four ranked pathway choices and preferred senior secondary schools.
                         </CardDescription>
@@ -429,7 +496,7 @@ export default function Pathways() {
                               <Select
                                 value={pref1}
                                 onValueChange={setPref1}
-                                disabled={allocation?.finalized || savePreferencesMutation.isPending}
+                                disabled={allocation?.finalized || isPreferencesLocked || savePreferencesMutation.isPending}
                               >
                                 <SelectTrigger>
                                   <SelectValue placeholder="Select Pathway" />
@@ -449,7 +516,7 @@ export default function Pathways() {
                                 placeholder="e.g. Alliance High School"
                                 value={school1}
                                 onChange={(e) => setSchool1(e.target.value)}
-                                disabled={allocation?.finalized || savePreferencesMutation.isPending}
+                                disabled={allocation?.finalized || isPreferencesLocked || savePreferencesMutation.isPending}
                               />
                             </div>
                           </div>
@@ -464,7 +531,7 @@ export default function Pathways() {
                               <Select
                                 value={pref2}
                                 onValueChange={setPref2}
-                                disabled={allocation?.finalized || savePreferencesMutation.isPending}
+                                disabled={allocation?.finalized || isPreferencesLocked || savePreferencesMutation.isPending}
                               >
                                 <SelectTrigger>
                                   <SelectValue placeholder="Select Pathway" />
@@ -484,7 +551,7 @@ export default function Pathways() {
                                 placeholder="e.g. Mang'u High School"
                                 value={school2}
                                 onChange={(e) => setSchool2(e.target.value)}
-                                disabled={allocation?.finalized || savePreferencesMutation.isPending}
+                                disabled={allocation?.finalized || isPreferencesLocked || savePreferencesMutation.isPending}
                               />
                             </div>
                           </div>
@@ -499,7 +566,7 @@ export default function Pathways() {
                               <Select
                                 value={pref3}
                                 onValueChange={setPref3}
-                                disabled={allocation?.finalized || savePreferencesMutation.isPending}
+                                disabled={allocation?.finalized || isPreferencesLocked || savePreferencesMutation.isPending}
                               >
                                 <SelectTrigger>
                                   <SelectValue placeholder="Select Pathway" />
@@ -519,7 +586,7 @@ export default function Pathways() {
                                 placeholder="e.g. Kenya High School"
                                 value={school3}
                                 onChange={(e) => setSchool3(e.target.value)}
-                                disabled={allocation?.finalized || savePreferencesMutation.isPending}
+                                disabled={allocation?.finalized || isPreferencesLocked || savePreferencesMutation.isPending}
                               />
                             </div>
                           </div>
@@ -534,7 +601,7 @@ export default function Pathways() {
                               <Select
                                 value={pref4}
                                 onValueChange={setPref4}
-                                disabled={allocation?.finalized || savePreferencesMutation.isPending}
+                                disabled={allocation?.finalized || isPreferencesLocked || savePreferencesMutation.isPending}
                               >
                                 <SelectTrigger>
                                   <SelectValue placeholder="Select Pathway" />
@@ -554,14 +621,24 @@ export default function Pathways() {
                                 placeholder="e.g. Lenana School"
                                 value={school4}
                                 onChange={(e) => setSchool4(e.target.value)}
-                                disabled={allocation?.finalized || savePreferencesMutation.isPending}
+                                disabled={allocation?.finalized || isPreferencesLocked || savePreferencesMutation.isPending}
                               />
                             </div>
                           </div>
                         </div>
                       </CardContent>
                       <CardFooter>
-                        {!allocation?.finalized ? (
+                        {allocation?.finalized ? (
+                          <div className="w-full flex items-center justify-center py-2 bg-muted text-muted-foreground rounded text-xs gap-1.5">
+                            <Lock className="w-3.5 h-3.5" />
+                            Preferences locked after finalization
+                          </div>
+                        ) : isPreferencesLocked ? (
+                          <div className="w-full flex items-center justify-center py-2.5 bg-warning/10 text-warning border border-warning/20 rounded-lg text-xs gap-1.5 font-semibold">
+                            <Lock className="w-3.5 h-3.5" />
+                            Preferences Locked
+                          </div>
+                        ) : (
                           <Button 
                             type="submit" 
                             className="w-full gap-2" 
@@ -574,33 +651,35 @@ export default function Pathways() {
                             )}
                             Save Preferences
                           </Button>
-                        ) : (
-                          <div className="w-full flex items-center justify-center py-2 bg-muted text-muted-foreground rounded text-xs gap-1.5">
-                            <Lock className="w-3.5 h-3.5" />
-                            Preferences locked after finalization
-                          </div>
                         )}
                       </CardFooter>
                     </form>
                   </Card>
+                )}
 
-                  {/* Allocation Card */}
-                  <Card className={cn(allocation?.finalized && "border-success/45 bg-success/5 shadow-sm")}>
-                    <CardHeader>
-                      <CardTitle className="text-base flex items-center justify-between">
-                        <span className="flex items-center gap-2">
-                          <GraduationCap className="w-5 h-5 text-primary" />
-                          SSS Placement Allocation
-                        </span>
-                        {allocation?.finalized && (
-                          <Badge variant="outline" className="bg-success/20 text-success border-success/30 font-semibold gap-1 py-0.5">
-                            <CheckCircle className="w-3.5 h-3.5" /> Finalized
-                          </Badge>
-                        )}
-                      </CardTitle>
-                      <CardDescription>
-                        Confirm placement pathway, KJSEA scores, and save/finalize record.
-                      </CardDescription>
+                {/* Parents Confirmed Placement View */}
+                <Card className={cn(allocation?.finalized && "border-success/45 bg-success/5 shadow-sm", isLearnerSSS && "col-span-full")}>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        <GraduationCap className="w-5 h-5 text-primary" />
+                        {isLearnerSSS ? "Active Pathway Assignment" : "Placement Allocation Results"}
+                      </span>
+                      {(allocation?.finalized || isLearnerSSS) ? (
+                        <Badge variant="outline" className="bg-success/20 text-success border-success/30 font-semibold gap-1 py-0.5">
+                          <CheckCircle className="w-3.5 h-3.5" /> {isLearnerSSS ? "Active & Enrolled" : "Finalized"}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-warning/20 text-warning border-warning/30 font-semibold py-0.5">
+                          Pending Placement
+                        </Badge>
+                      )}
+                    </CardTitle>
+                    <CardDescription>
+                      {isLearnerSSS 
+                        ? "Confirm active student pathway, KJSEA score, and save/finalize record." 
+                        : "Confirm placement pathway, KJSEA scores, and save/finalize record."}
+                    </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="space-y-2">
@@ -686,6 +765,25 @@ export default function Pathways() {
                           className="h-16 resize-none"
                         />
                       </div>
+
+                      {isLearnerSSS && allocatedPathway && (
+                        <div className="mt-6 pt-6 border-t border-border space-y-3">
+                          <h4 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                            <Info className="w-4 h-4 text-primary" />
+                            Enrolled Pathway Subjects
+                          </h4>
+                          <p className="text-xs text-muted-foreground">
+                            Subjects associated with the student's active {allocatedPathway === "STEM" ? "STEM" : allocatedPathway === "Social_Sciences" ? "Social Sciences" : "Arts & Sports"} Pathway:
+                          </p>
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {getSubjectsForPathway(allocatedPathway).map((sub) => (
+                              <Badge key={sub} variant="secondary" className="text-xs py-1 px-2.5 bg-primary/5 hover:bg-primary/10 text-primary border border-primary/20">
+                                {sub}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </CardContent>
                     <CardFooter className="flex flex-col gap-2">
                       {!allocation?.finalized ? (
@@ -803,9 +901,10 @@ export default function Pathways() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className={cn("grid grid-cols-1 gap-6", !isLearnerSSS && "md:grid-cols-2")}>
                 {/* Parents Pathway Preferences view */}
-                <Card>
+                {!isLearnerSSS && (
+                  <Card>
                   <CardHeader>
                     <CardTitle className="text-base flex items-center gap-2">
                       <Route className="w-5 h-5 text-primary" />
@@ -856,35 +955,38 @@ export default function Pathways() {
                     )}
                   </CardContent>
                 </Card>
+              )}
 
-                {/* Parents Confirmed Placement View */}
-                <Card className={cn(allocation?.finalized && "border-success/45 bg-success/5 shadow-sm")}>
-                  <CardHeader>
-                    <CardTitle className="text-base flex items-center justify-between">
-                      <span className="flex items-center gap-2">
-                        <GraduationCap className="w-5 h-5 text-primary" />
-                        Placement Allocation Results
-                      </span>
-                      {allocation?.finalized ? (
-                        <Badge variant="outline" className="bg-success/20 text-success border-success/30 font-semibold gap-1 py-0.5">
-                          <CheckCircle className="w-3.5 h-3.5" /> Finalized
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="bg-warning/20 text-warning border-warning/30 font-semibold py-0.5">
-                          Pending Placement
-                        </Badge>
-                      )}
-                    </CardTitle>
-                    <CardDescription>
-                      Official path assignment finalized by school administration.
-                    </CardDescription>
+              {/* Parents Confirmed Placement View */}
+              <Card className={cn(allocation?.finalized && "border-success/45 bg-success/5 shadow-sm", isLearnerSSS && "col-span-full")}>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <GraduationCap className="w-5 h-5 text-primary" />
+                      {isLearnerSSS ? "Active Pathway Assignment" : "Placement Allocation Results"}
+                    </span>
+                    {(allocation?.finalized || isLearnerSSS) ? (
+                      <Badge variant="outline" className="bg-success/20 text-success border-success/30 font-semibold gap-1 py-0.5">
+                        <CheckCircle className="w-3.5 h-3.5" /> {isLearnerSSS ? "Active & Enrolled" : "Finalized"}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-warning/20 text-warning border-warning/30 font-semibold py-0.5">
+                        Pending Placement
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    {isLearnerSSS 
+                      ? "Official active pathway assignment and details for SSS education."
+                      : "Official path assignment finalized by school administration."}
+                  </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {loadingAlloc ? (
                       <div className="flex items-center justify-center py-6">
                         <Loader2 className="w-5 h-5 animate-spin text-primary" />
                       </div>
-                    ) : !allocation ? (
+                    ) : (!allocation && (!isLearnerSSS || !activeLearner?.senior_pathway)) ? (
                       <div className="text-center py-8 text-muted-foreground text-xs leading-relaxed">
                         <AlertCircle className="w-7 h-7 mx-auto mb-2 text-muted-foreground/60" />
                         The placement evaluation process is currently ongoing.<br/>
@@ -898,22 +1000,25 @@ export default function Pathways() {
                           </label>
                           <span className="text-lg font-extrabold text-foreground flex items-center gap-2">
                             <CheckCircle className="w-5 h-5 text-success" />
-                            {allocation.pathway === "STEM" ? "STEM" : allocation.pathway === "Social_Sciences" ? "Social Sciences" : "Arts & Sports"}
+                            {allocation 
+                              ? (allocation.pathway === "STEM" ? "STEM" : allocation.pathway === "Social_Sciences" ? "Social Sciences" : "Arts & Sports")
+                              : (activeLearner?.senior_pathway === "STEM" ? "STEM" : activeLearner?.senior_pathway === "Social_Sciences" ? "Social Sciences" : "Arts & Sports")
+                            }
                           </span>
                         </div>
 
-                        {allocation.allocated_school_name && (
+                        {((allocation && allocation.allocated_school_name) || (!allocation && activeLearner?.previous_school)) && (
                           <div className="p-4 border rounded-xl bg-card">
                             <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block mb-1">
                               Allocated Senior Secondary School
                             </label>
                             <span className="text-lg font-bold text-foreground">
-                              {allocation.allocated_school_name}
+                              {allocation ? allocation.allocated_school_name : activeLearner?.previous_school}
                             </span>
                           </div>
                         )}
 
-                        {allocation.allocated_school_code && (
+                        {allocation?.allocated_school_code && (
                           <div className="p-4 border rounded-xl bg-card">
                             <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block mb-1">
                               School Code
@@ -924,7 +1029,7 @@ export default function Pathways() {
                           </div>
                         )}
 
-                        {allocation.kjsea_score !== null && (
+                        {allocation?.kjsea_score !== null && allocation?.kjsea_score !== undefined && (
                           <div className="p-4 border rounded-xl bg-card">
                             <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block mb-1">
                               KJSEA Average Score
@@ -935,7 +1040,7 @@ export default function Pathways() {
                           </div>
                         )}
 
-                        {allocation.notes && (
+                        {allocation?.notes && (
                           <div className="p-4 border rounded-xl bg-card">
                             <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block mb-1">
                               Evaluation Remarks / Counseling Notes
@@ -943,6 +1048,23 @@ export default function Pathways() {
                             <p className="text-sm text-muted-foreground leading-relaxed mt-0.5">
                               {allocation.notes}
                             </p>
+                          </div>
+                        )}
+
+                        {/* Active SSS subjects display */}
+                        {((allocation && allocation.pathway) || (!allocation && activeLearner?.senior_pathway)) && (
+                          <div className="mt-6 pt-6 border-t border-border space-y-3">
+                            <h4 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                              <Info className="w-4 h-4 text-primary" />
+                              Active Enrolled Subjects
+                            </h4>
+                            <div className="flex flex-wrap gap-2 pt-1">
+                              {getSubjectsForPathway(allocation ? allocation.pathway : activeLearner?.senior_pathway).map((sub) => (
+                                <Badge key={sub} variant="secondary" className="text-xs py-1 px-2.5 bg-primary/5 text-primary border border-primary/20">
+                                  {sub}
+                                </Badge>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>

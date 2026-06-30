@@ -984,8 +984,9 @@ export type Database = {
           id: string
           school_id: string
           learner_id: string
-          strand_id: string
-          sub_strand_id: string
+          learning_area: string
+          strand_name: string | null
+          sub_strand_name: string | null
           teacher_id: string
           term: number
           year: string
@@ -1000,8 +1001,9 @@ export type Database = {
           id?: string
           school_id?: string
           learner_id: string
-          strand_id: string
-          sub_strand_id: string
+          learning_area: string
+          strand_name?: string | null
+          sub_strand_name?: string | null
           teacher_id: string
           term: number
           year: string
@@ -1016,8 +1018,9 @@ export type Database = {
           id?: string
           school_id?: string
           learner_id?: string
-          strand_id?: string
-          sub_strand_id?: string
+          learning_area?: string
+          strand_name?: string | null
+          sub_strand_name?: string | null
           teacher_id?: string
           term?: number
           year?: string
@@ -1041,20 +1044,6 @@ export type Database = {
             columns: ["learner_id"]
             isOneToOne: false
             referencedRelation: "learners"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "assessment_records_strand_id_fkey"
-            columns: ["strand_id"]
-            isOneToOne: false
-            referencedRelation: "strands"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "assessment_records_sub_strand_id_fkey"
-            columns: ["sub_strand_id"]
-            isOneToOne: false
-            referencedRelation: "sub_strands"
             referencedColumns: ["id"]
           },
           {
@@ -1191,6 +1180,7 @@ export type Database = {
           academic_year: string
           recorded_by: string | null
           preferred_school_name: string | null
+          is_locked: boolean
           created_at: string
           updated_at: string
         }
@@ -1203,6 +1193,7 @@ export type Database = {
           academic_year: string
           recorded_by?: string | null
           preferred_school_name?: string | null
+          is_locked?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -1215,6 +1206,7 @@ export type Database = {
           academic_year?: string
           recorded_by?: string | null
           preferred_school_name?: string | null
+          is_locked?: boolean
           created_at?: string
           updated_at?: string
         }

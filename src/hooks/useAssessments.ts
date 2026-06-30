@@ -242,8 +242,9 @@ export interface SubStrand {
 
 export interface AssessmentRecordInsert {
   learner_id: string;
-  strand_id: string;
-  sub_strand_id: string;
+  strand_name: string | null;
+  sub_strand_name: string | null;
+  learning_area: string;
   teacher_id: string;
   term: number;
   year: string;
@@ -329,8 +330,7 @@ export function useAssessmentRecords(classId?: string) {
         .from("assessment_records")
         .select(`
           *,
-          learner:learners(id, full_name, admission_number, class_id),
-          sub_strand:sub_strands(id, name, strand:strands(id, name, learning_area))
+          learner:learners(id, full_name, admission_number, class_id)
         `)
         .order("created_at", { ascending: false });
 
@@ -354,10 +354,7 @@ export function useStudentAssessmentRecords(studentId?: string) {
       
       const { data, error } = await supabase
         .from("assessment_records")
-        .select(`
-          *,
-          sub_strand:sub_strands(id, name, code, strand:strands(id, name, code, learning_area))
-        `)
+        .select("*")
         .eq("learner_id", studentId)
         .order("created_at", { ascending: false });
 
