@@ -356,7 +356,7 @@ export function useStudentAssessmentRecords(studentId?: string) {
         .from("assessment_records")
         .select(`
           *,
-          sub_strand:sub_strands(id, name, strand:strands(id, name, learning_area))
+          sub_strand:sub_strands(id, name, code, strand:strands(id, name, code, learning_area))
         `)
         .eq("learner_id", studentId)
         .order("created_at", { ascending: false });

@@ -25,6 +25,7 @@ import { useSchoolScope } from "@/hooks/useSchoolScope";
 import { SBAIngestionTab } from "@/components/assessments/SBAIngestionTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 const rubricScores = [
   { value: "Exceeds", label: "Exceeds Expectations (EE)", color: "bg-success text-success-foreground" },
@@ -236,6 +237,62 @@ export default function Assessments() {
       return acc;
     }, {} as Record<string, typeof studentRecords[0]>);
 
+    const handleExportCSV = () => {
+      if (!studentRecords || studentRecords.length === 0) {
+        toast.error("No assessment records found to export.");
+        return;
+      }
+
+      // Headers matching format expected by SBA Ingestion
+      const headers = [
+        "admission_number",
+        "strand_code",
+        "sub_strand_code",
+        "term",
+        "year",
+        "rubric_score",
+        "qualitative_notes",
+        "core_competency_notes",
+        "values_notes"
+      ];
+
+      const csvRows = [
+        headers.join(","),
+        ...studentRecords.map((record) => {
+          const row = [
+            selectedChild?.admission_number || "",
+            record.sub_strand?.strand?.code || "",
+            record.sub_strand?.code || "",
+            record.term || "",
+            record.year || "",
+            record.rubric_score || "",
+            record.qualitative_notes || "",
+            record.core_competency_notes || "",
+            record.values_notes || ""
+          ];
+          return row
+            .map((val) => {
+              const str = String(val).replace(/"/g, '""');
+              return str.includes(",") || str.includes("\n") || str.includes('"') ? `"${str}"` : str;
+            })
+            .join(",");
+        }),
+      ];
+
+      const csvContent = "\uFEFF" + csvRows.join("\n"); // Add BOM for Excel compatibility
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const childName = selectedChild?.full_name?.replace(/\s+/g, "_") || "student";
+      link.setAttribute("href", url);
+      link.setAttribute("download", `${childName}_SBA_History_Transfer.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success("Assessment history exported successfully");
+    };
+
     return (
       <DashboardLayout>
         <div className="page-header">
@@ -244,23 +301,28 @@ export default function Assessments() {
               <h1 className="page-title font-display">Academic Progress</h1>
               <p className="page-subtitle">View your child's CBC assessment results</p>
             </div>
-            {user.children && user.children.length > 1 && (
-              <Select
-                value={selectedChildId || ""}
-                onValueChange={(value) => setSelectedChildId(value)}
-              >
-                <SelectTrigger className="w-56">
-                  <SelectValue placeholder="Select student" />
-                </SelectTrigger>
-                <SelectContent>
-                  {user.children.map((child) => (
-                    <SelectItem key={child.id} value={child.id}>
-                      {child.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            <div className="flex flex-wrap items-center gap-3">
+              <Button onClick={handleExportCSV} className="gap-2" variant="outline">
+                <FileText className="w-4 h-4" /> Export SBA History (Transfer CSV)
+              </Button>
+              {user.children && user.children.length > 1 && (
+                <Select
+                  value={selectedChildId || ""}
+                  onValueChange={(value) => setSelectedChildId(value)}
+                >
+                  <SelectTrigger className="w-56">
+                    <SelectValue placeholder="Select student" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {user.children.map((child) => (
+                      <SelectItem key={child.id} value={child.id}>
+                        {child.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
           </div>
         </div>
 

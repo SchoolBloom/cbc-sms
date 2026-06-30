@@ -63,64 +63,79 @@ export function AddTeacherDialog({ trigger }: AddTeacherDialogProps) {
         .maybeSingle();
 
       if (profileError) throw profileError;
-      if (!profile) {
-        throw new Error("No user found for that email. Ask the teacher to sign up first.");
+
+      const finalFullName = data.full_name?.trim() || profile?.full_name || normalizedEmail;
+      const finalPhone = data.phone?.trim() || profile?.phone || null;
+
+      if (profile) {
+        const profileUpdates: Record<string, string> = {
+          email: normalizedEmail,
+        };
+        if (data.full_name?.trim()) profileUpdates.full_name = data.full_name.trim();
+        if (data.phone?.trim()) profileUpdates.phone = data.phone.trim();
+
+        const { error: updateError } = await supabase
+          .from("profiles")
+          .update(profileUpdates)
+          .eq("id", profile.id);
+        if (updateError) throw updateError;
+
+        const { data: existingRole, error: roleCheckError } = await supabase
+          .from("user_roles")
+          .select("id")
+          .eq("user_id", profile.user_id)
+          .eq("role", "teacher")
+          .maybeSingle();
+
+        if (roleCheckError) throw roleCheckError;
+
+        if (!existingRole) {
+          const { error: roleError } = await supabase
+            .from("user_roles")
+            .insert({
+              user_id: profile.user_id,
+              role: "teacher",
+              school_id: schoolId,
+            });
+          if (roleError) throw roleError;
+        } else {
+          const { error: roleUpdateError } = await supabase
+            .from("user_roles")
+            .update({ school_id: schoolId })
+            .eq("id", existingRole.id);
+          if (roleUpdateError) throw roleUpdateError;
+        }
       }
 
-      const profileUpdates: Record<string, string> = {
-        email: normalizedEmail,
-      };
-      if (data.full_name?.trim()) profileUpdates.full_name = data.full_name.trim();
-      if (data.phone?.trim()) profileUpdates.phone = data.phone.trim();
-
-      const finalFullName = profileUpdates.full_name || profile.full_name;
-      const finalPhone = profileUpdates.phone || profile.phone;
-
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update(profileUpdates)
-        .eq("id", profile.id);
-      if (updateError) throw updateError;
-
-      const { data: existingRole, error: roleCheckError } = await supabase
-        .from("user_roles")
+      // Check if teacher record with this email already exists
+      const { data: existingTeacher, error: teacherCheckError } = await supabase
+        .from("teachers")
         .select("id")
-        .eq("user_id", profile.user_id)
-        .eq("role", "teacher")
+        .eq("email", normalizedEmail)
         .maybeSingle();
 
-      if (roleCheckError) throw roleCheckError;
+      if (teacherCheckError) throw teacherCheckError;
 
-      if (!existingRole) {
-        const { error: roleError } = await supabase
-          .from("user_roles")
-          .insert({
-            user_id: profile.user_id,
-            role: "teacher",
-            school_id: schoolId,
-          });
-        if (roleError) throw roleError;
+      const teacherRecord = {
+        user_id: profile ? profile.user_id : null,
+        full_name: finalFullName,
+        email: normalizedEmail,
+        phone: finalPhone,
+        school_id: schoolId,
+      };
+
+      if (existingTeacher) {
+        const { error: teacherError } = await supabase
+          .from("teachers")
+          .update(teacherRecord)
+          .eq("id", existingTeacher.id);
+        if (teacherError) throw teacherError;
       } else {
-        const { error: roleUpdateError } = await supabase
-          .from("user_roles")
-          .update({ school_id: schoolId })
-          .eq("id", existingRole.id);
-        if (roleUpdateError) throw roleUpdateError;
+        const { error: teacherError } = await supabase
+          .from("teachers")
+          .insert(teacherRecord);
+        if (teacherError) throw teacherError;
       }
-
-      const { error: teacherError } = await supabase
-        .from("teachers")
-        .upsert(
-          {
-            user_id: profile.user_id,
-            full_name: finalFullName || normalizedEmail,
-            email: profile.email || normalizedEmail,
-            phone: finalPhone || profile.phone || null,
-            school_id: schoolId,
-          },
-          { onConflict: "user_id" }
-        );
-      if (teacherError) throw teacherError;
     },
     onSuccess: () => {
       toast.success("Teacher added successfully");

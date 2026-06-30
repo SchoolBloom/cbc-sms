@@ -14,12 +14,16 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, GraduationCap, TrendingUp, BookOpen, Route, ServerCog, ShieldCheck, FileText, Building2 } from "lucide-react";
+import { usePlatformStats } from "@/hooks/usePlatformStats";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell } from "recharts";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
   const { user, selectedChildId, setSelectedChildId } = useRole();
   const { session } = useAuth();
   const { data: academicYear } = useAcademicYear();
   const { schoolId, schoolName } = useSchoolScope();
+  const { data: platformStats, isLoading: loadingStats } = usePlatformStats(user?.role === "system_admin");
   
   const currentAcademicYear = academicYear?.label || new Date().getFullYear().toString();
 
@@ -47,82 +51,7 @@ export default function Dashboard() {
     enabled: user?.role === "system_admin",
   });
 
-  const { data: globalUsersCount = 0 } = useQuery({
-    queryKey: ["system-global-users"],
-    queryFn: async () => {
-      const { count, error } = await supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true });
-      if (error) throw error;
-      return count || 0;
-    },
-    enabled: user?.role === "system_admin",
-  });
 
-  const { data: globalLearnersCount = 0 } = useQuery({
-    queryKey: ["system-global-learners"],
-    queryFn: async () => {
-      const { count, error } = await supabase
-        .from("learners")
-        .select("id", { count: "exact", head: true });
-      if (error) throw error;
-      return count || 0;
-    },
-    enabled: user?.role === "system_admin",
-  });
-
-  const { data: assignedRolesCount = 0 } = useQuery({
-    queryKey: ["system-roles-count"],
-    queryFn: async () => {
-      const { count, error } = await supabase
-        .from("user_roles")
-        .select("id", { count: "exact", head: true });
-      if (error) throw error;
-      return count || 0;
-    },
-    enabled: user?.role === "system_admin",
-  });
-
-  const { data: roleBreakdown = {} } = useQuery({
-    queryKey: ["system-role-breakdown"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role");
-      if (error) throw error;
-      const counts: Record<string, number> = {};
-      data?.forEach((row) => {
-        counts[row.role] = (counts[row.role] || 0) + 1;
-      });
-      return counts;
-    },
-    enabled: user?.role === "system_admin",
-  });
-
-  const systemMetrics = useMemo(() => {
-    const totalSchools = systemSchools.length;
-    const activeSchools = systemSchools.filter((s) => s.active_status).length;
-    const onboardingSchools = systemSchools.filter((s) => s.status === "onboarding").length;
-    const schoolsWithBasic = systemSchools.filter((s) =>
-      s.school_categories?.includes("primary_junior_secondary") || s.levels_offered?.includes("primary_junior_secondary")
-    ).length;
-    const schoolsWithSenior = systemSchools.filter((s) =>
-      s.school_categories?.includes("senior_secondary") || s.levels_offered?.includes("senior_secondary")
-    ).length;
-    const schoolsWithBoth = systemSchools.filter((s) =>
-      (s.school_categories?.includes("primary_junior_secondary") || s.levels_offered?.includes("primary_junior_secondary")) &&
-      (s.school_categories?.includes("senior_secondary") || s.levels_offered?.includes("senior_secondary"))
-    ).length;
-
-    return {
-      totalSchools,
-      activeSchools,
-      onboardingSchools,
-      schoolsWithBasic,
-      schoolsWithSenior,
-      schoolsWithBoth,
-    };
-  }, [systemSchools]);
 
   // ================= SCHOOL ADMIN QUERIES =================
   const { data: studentCount = 0 } = useQuery({
@@ -329,6 +258,16 @@ export default function Dashboard() {
     }
   };
 
+  console.log("DASHBOARD_DIAGNOSTICS:", {
+    role: user?.role,
+    schoolId,
+    schoolName,
+    studentCount,
+    classCount,
+    teacherCount,
+    parentCount,
+  });
+
   return (
     <DashboardLayout>
       {/* Header */}
@@ -348,64 +287,141 @@ export default function Dashboard() {
       {/* ================= SUPER ADMIN VIEW ================= */}
       {user?.role === "system_admin" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard
-              title="Registered Schools"
-              value={systemMetrics.totalSchools}
-              subtitle="Active licenses"
-              icon={Building2}
-              variant="primary"
-            />
-            <StatCard
-              title="Platform Signups"
-              value={globalUsersCount}
-              subtitle="Total users provisioned"
-              icon={Users}
-            />
-            <StatCard
-              title="Assigned Roles"
-              value={assignedRolesCount}
-              subtitle="Mapped roles"
-              icon={ShieldCheck}
-            />
-            <StatCard
-              title="Total Learners"
-              value={globalLearnersCount}
-              subtitle="Students catered for"
-              icon={BookOpen}
-              variant="success"
-            />
-          </div>
+          {loadingStats ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Skeleton className="h-32 rounded-xl" />
+              <Skeleton className="h-32 rounded-xl" />
+              <Skeleton className="h-32 rounded-xl" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <StatCard
+                title="Total Schools"
+                value={platformStats?.totalSchools || 0}
+                subtitle="Registered schools system-wide"
+                icon={Building2}
+                variant="primary"
+              />
+              <StatCard
+                title="Total Learners"
+                value={platformStats?.totalLearners || 0}
+                subtitle="Active learners platform-wide"
+                icon={GraduationCap}
+                variant="success"
+              />
+              <StatCard
+                title="Total Users"
+                value={platformStats?.totalUsers || 0}
+                subtitle="Provisioned active accounts"
+                icon={Users}
+              />
+            </div>
+          )}
 
+          {loadingStats ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Skeleton className="h-80 rounded-xl" />
+              <Skeleton className="h-80 rounded-xl" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Schools by Category */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold">Schools by Category</CardTitle>
+                  <CardDescription>Distribution of schools registered on the platform</CardDescription>
+                </CardHeader>
+                <CardContent className="h-56 flex items-center justify-center">
+                  {platformStats?.schoolsByCategory && platformStats.schoolsByCategory.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={platformStats.schoolsByCategory} layout="vertical" margin={{ left: 10, right: 10, top: 10, bottom: 10 }}>
+                        <XAxis type="number" hide />
+                        <YAxis dataKey="category" type="category" width={100} axisLine={false} tickLine={false} className="text-xs text-muted-foreground" />
+                        <Tooltip cursor={{ fill: 'transparent' }} />
+                        <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} barSize={20} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">No category data available</span>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Accounts per Role */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold">Accounts per Role</CardTitle>
+                  <CardDescription>Breakdown of active platform accounts by user role</CardDescription>
+                </CardHeader>
+                <CardContent className="h-56 flex items-center justify-center">
+                  {platformStats?.accountsByRole && platformStats.accountsByRole.length > 0 ? (
+                    <div className="flex flex-col sm:flex-row items-center justify-around w-full gap-4 px-2">
+                      <div className="w-1/2 h-44">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={platformStats.accountsByRole}
+                              dataKey="count"
+                              nameKey="role"
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={45}
+                              outerRadius={65}
+                              paddingAngle={2}
+                            >
+                              {platformStats.accountsByRole.map((entry, index) => {
+                                const colors = [
+                                  "hsl(var(--primary))",
+                                  "hsl(var(--accent))",
+                                  "hsl(var(--muted-foreground))",
+                                  "hsl(var(--border))"
+                                ];
+                                return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                              })}
+                            </Pie>
+                            <Tooltip />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="space-y-2.5 flex-1">
+                        {platformStats.accountsByRole.map((entry, index) => {
+                          const colors = [
+                            "bg-primary",
+                            "bg-accent",
+                            "bg-muted-foreground",
+                            "bg-border"
+                          ];
+                          return (
+                            <div key={entry.role} className="flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-2">
+                                <span className={`w-2.5 h-2.5 rounded-full ${colors[index % colors.length]}`} />
+                                <span className="text-muted-foreground font-medium">{entry.role}</span>
+                              </div>
+                              <span className="font-bold text-foreground">{entry.count}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">No role data available</span>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Registered Schools list (snapshot) */}
           <div className="bg-card rounded-xl border border-border/50 p-6">
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
-                <h2 className="font-display font-semibold text-foreground">System Usage</h2>
-                <p className="text-sm text-muted-foreground">Current platform allocation, school coverage, and category mix.</p>
+                <h2 className="font-display font-semibold text-foreground">Registered Schools Snapshot</h2>
+                <p className="text-sm text-muted-foreground">Adoption overview and status of onboarding schools.</p>
               </div>
               <Badge variant="outline">Supabase Connected</Badge>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              {[
-                { label: "PP1 to Grade 9 schools", value: systemMetrics.schoolsWithBasic },
-                { label: "Grade 10 to 12 schools", value: systemMetrics.schoolsWithSenior },
-                { label: "Schools with both", value: systemMetrics.schoolsWithBoth },
-                { label: "Total Learners Registered", value: globalLearnersCount },
-                { label: "System admins", value: roleBreakdown.system_admin || 0 },
-                { label: "School admins", value: roleBreakdown.admin || 0 },
-                { label: "Teachers", value: roleBreakdown.teacher || 0 },
-                { label: "Parents", value: roleBreakdown.parent || 0 },
-              ].map((item) => (
-                <div key={item.label} className="rounded-xl bg-muted/40 px-4 py-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{item.label}</p>
-                  <p className="mt-2 text-2xl font-display font-bold text-foreground">{item.value}</p>
-                </div>
-              ))}
-            </div>
-
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground mb-2">Registered Schools Snapshot</h3>
               {systemSchools.length > 0 ? (
                 systemSchools.slice(0, 6).map((school) => (
                   <div key={school.id} className="flex flex-col gap-2 rounded-xl border border-border/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between bg-card hover:bg-muted/10 transition-colors">
@@ -422,6 +438,11 @@ export default function Dashboard() {
                             {category === "primary_junior_secondary" ? "PP1 to Grade 9" : "Grade 10 to 12"}
                           </Badge>
                         ))}
+                        {school.category && (
+                          <Badge variant="secondary">
+                            {school.category === "Special_Needs" ? "Special Needs" : school.category}
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -431,9 +452,9 @@ export default function Dashboard() {
               )}
             </div>
             <div className="mt-6 rounded-xl border border-border/50 bg-muted/30 px-4 py-3">
-              <p className="font-medium text-foreground">System admin access</p>
+              <p className="font-medium text-foreground">Super Admin Access Level</p>
               <p className="text-sm text-muted-foreground">
-                This role can register schools and their administrators, but it remains limited to overall system performance and onboarding visibility.
+                This console displays global telemetry across all tenant partitions. Access is strictly audited and limited to platform operations.
               </p>
             </div>
           </div>

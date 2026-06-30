@@ -53,7 +53,14 @@ export default function Pathways() {
   const [pref1, setPref1] = useState<string>("");
   const [pref2, setPref2] = useState<string>("");
   const [pref3, setPref3] = useState<string>("");
+  const [pref4, setPref4] = useState<string>("");
+  const [school1, setSchool1] = useState<string>("");
+  const [school2, setSchool2] = useState<string>("");
+  const [school3, setSchool3] = useState<string>("");
+  const [school4, setSchool4] = useState<string>("");
   const [allocatedPathway, setAllocatedPathway] = useState<string>("");
+  const [allocatedSchoolName, setAllocatedSchoolName] = useState<string>("");
+  const [allocatedSchoolCode, setAllocatedSchoolCode] = useState<string>("");
   const [kjseaScore, setKjseaScore] = useState<string>("");
   const [allocationSource, setAllocationSource] = useState<string>("KJSEA");
   const [notes, setNotes] = useState<string>("");
@@ -118,27 +125,42 @@ export default function Pathways() {
   // Sync forms with database values
   useEffect(() => {
     if (preferences && preferences.length > 0) {
-      const p1 = preferences.find(p => p.rank === 1)?.pathway || "";
-      const p2 = preferences.find(p => p.rank === 2)?.pathway || "";
-      const p3 = preferences.find(p => p.rank === 3)?.pathway || "";
-      setPref1(p1);
-      setPref2(p2);
-      setPref3(p3);
+      const p1 = preferences.find(p => p.rank === 1);
+      const p2 = preferences.find(p => p.rank === 2);
+      const p3 = preferences.find(p => p.rank === 3);
+      const p4 = preferences.find(p => p.rank === 4);
+      setPref1(p1?.pathway || "");
+      setSchool1(p1?.preferred_school_name || "");
+      setPref2(p2?.pathway || "");
+      setSchool2(p2?.preferred_school_name || "");
+      setPref3(p3?.pathway || "");
+      setSchool3(p3?.preferred_school_name || "");
+      setPref4(p4?.pathway || "");
+      setSchool4(p4?.preferred_school_name || "");
     } else {
       setPref1("");
+      setSchool1("");
       setPref2("");
+      setSchool2("");
       setPref3("");
+      setSchool3("");
+      setPref4("");
+      setSchool4("");
     }
   }, [preferences]);
 
   useEffect(() => {
     if (allocation) {
       setAllocatedPathway(allocation.pathway || "");
+      setAllocatedSchoolName(allocation.allocated_school_name || "");
+      setAllocatedSchoolCode(allocation.allocated_school_code || "");
       setKjseaScore(allocation.kjsea_score !== null ? allocation.kjsea_score.toString() : "");
       setAllocationSource(allocation.allocation_source || "KJSEA");
       setNotes(allocation.notes || "");
     } else {
       setAllocatedPathway("");
+      setAllocatedSchoolName("");
+      setAllocatedSchoolCode("");
       setKjseaScore("");
       setAllocationSource("KJSEA");
       setNotes("");
@@ -157,20 +179,21 @@ export default function Pathways() {
     e.preventDefault();
     if (!activeLearnerId) return;
 
-    if (!pref1 || !pref2 || !pref3) {
-      toast.error("Please select all three preferences");
+    if (!pref1 || !pref2 || !pref3 || !pref4) {
+      toast.error("Please select all four preferences");
       return;
     }
 
-    if (pref1 === pref2 || pref1 === pref3 || pref2 === pref3) {
-      toast.error("Preferences must be distinct. Please select a different pathway for each choice.");
+    if (!school1.trim() || !school2.trim() || !school3.trim() || !school4.trim()) {
+      toast.error("Please enter preferred schools for all four choices");
       return;
     }
 
-    const preferencesList: { rank: number; pathway: 'STEM' | 'Social_Sciences' | 'Arts_Sports' }[] = [
-      { rank: 1, pathway: pref1 as 'STEM' | 'Social_Sciences' | 'Arts_Sports' },
-      { rank: 2, pathway: pref2 as 'STEM' | 'Social_Sciences' | 'Arts_Sports' },
-      { rank: 3, pathway: pref3 as 'STEM' | 'Social_Sciences' | 'Arts_Sports' }
+    const preferencesList: { rank: number; pathway: 'STEM' | 'Social_Sciences' | 'Arts_Sports'; preferred_school_name: string }[] = [
+      { rank: 1, pathway: pref1 as 'STEM' | 'Social_Sciences' | 'Arts_Sports', preferred_school_name: school1.trim() },
+      { rank: 2, pathway: pref2 as 'STEM' | 'Social_Sciences' | 'Arts_Sports', preferred_school_name: school2.trim() },
+      { rank: 3, pathway: pref3 as 'STEM' | 'Social_Sciences' | 'Arts_Sports', preferred_school_name: school3.trim() },
+      { rank: 4, pathway: pref4 as 'STEM' | 'Social_Sciences' | 'Arts_Sports', preferred_school_name: school4.trim() }
     ];
 
     savePreferencesMutation.mutate({
@@ -207,7 +230,9 @@ export default function Pathways() {
       allocationSource: allocationSource as 'KJSEA' | 'manual' | 'appeal',
       notes: notes || null,
       finalized,
-      userId: user?.id || ""
+      userId: user?.id || "",
+      allocatedSchoolName: allocatedSchoolName.trim() || null,
+      allocatedSchoolCode: allocatedSchoolCode.trim() || null,
     }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ["all-pathway-allocations"] });
@@ -391,68 +416,148 @@ export default function Pathways() {
                           Ranked Preferences
                         </CardTitle>
                         <CardDescription>
-                          Record the student's top three ranked pathway choices.
+                          Record the student's top four ranked pathway choices and preferred senior secondary schools.
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                          <label className="text-xs font-semibold text-muted-foreground">1st Choice Preference</label>
-                          <Select
-                            value={pref1}
-                            onValueChange={setPref1}
-                            disabled={allocation?.finalized || savePreferencesMutation.isPending}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select 1st Choice" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {PATHWAY_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.value === "STEM" ? "STEM" : opt.value === "Social_Sciences" ? "Social Sciences" : "Arts & Sports"}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        {/* Choice 1 */}
+                        <div className="p-3 border rounded-lg bg-muted/20 space-y-3">
+                          <label className="text-xs font-bold text-foreground">1st Choice Preference</label>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-[10px] text-muted-foreground uppercase font-semibold">Pathway</label>
+                              <Select
+                                value={pref1}
+                                onValueChange={setPref1}
+                                disabled={allocation?.finalized || savePreferencesMutation.isPending}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select Pathway" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {PATHWAY_OPTIONS.map((opt) => (
+                                    <SelectItem key={opt.value} value={opt.value}>
+                                      {opt.value === "STEM" ? "STEM" : opt.value === "Social_Sciences" ? "Social Sciences" : "Arts & Sports"}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] text-muted-foreground uppercase font-semibold">Senior Secondary School</label>
+                              <Input
+                                placeholder="e.g. Alliance High School"
+                                value={school1}
+                                onChange={(e) => setSchool1(e.target.value)}
+                                disabled={allocation?.finalized || savePreferencesMutation.isPending}
+                              />
+                            </div>
+                          </div>
                         </div>
 
-                        <div className="space-y-2">
-                          <label className="text-xs font-semibold text-muted-foreground">2nd Choice Preference</label>
-                          <Select
-                            value={pref2}
-                            onValueChange={setPref2}
-                            disabled={allocation?.finalized || savePreferencesMutation.isPending}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select 2nd Choice" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {PATHWAY_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.value === "STEM" ? "STEM" : opt.value === "Social_Sciences" ? "Social Sciences" : "Arts & Sports"}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        {/* Choice 2 */}
+                        <div className="p-3 border rounded-lg bg-muted/20 space-y-3">
+                          <label className="text-xs font-bold text-foreground">2nd Choice Preference</label>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-[10px] text-muted-foreground uppercase font-semibold">Pathway</label>
+                              <Select
+                                value={pref2}
+                                onValueChange={setPref2}
+                                disabled={allocation?.finalized || savePreferencesMutation.isPending}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select Pathway" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {PATHWAY_OPTIONS.map((opt) => (
+                                    <SelectItem key={opt.value} value={opt.value}>
+                                      {opt.value === "STEM" ? "STEM" : opt.value === "Social_Sciences" ? "Social Sciences" : "Arts & Sports"}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] text-muted-foreground uppercase font-semibold">Senior Secondary School</label>
+                              <Input
+                                placeholder="e.g. Mang'u High School"
+                                value={school2}
+                                onChange={(e) => setSchool2(e.target.value)}
+                                disabled={allocation?.finalized || savePreferencesMutation.isPending}
+                              />
+                            </div>
+                          </div>
                         </div>
 
-                        <div className="space-y-2">
-                          <label className="text-xs font-semibold text-muted-foreground">3rd Choice Preference</label>
-                          <Select
-                            value={pref3}
-                            onValueChange={setPref3}
-                            disabled={allocation?.finalized || savePreferencesMutation.isPending}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select 3rd Choice" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {PATHWAY_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.value === "STEM" ? "STEM" : opt.value === "Social_Sciences" ? "Social Sciences" : "Arts & Sports"}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        {/* Choice 3 */}
+                        <div className="p-3 border rounded-lg bg-muted/20 space-y-3">
+                          <label className="text-xs font-bold text-foreground">3rd Choice Preference</label>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-[10px] text-muted-foreground uppercase font-semibold">Pathway</label>
+                              <Select
+                                value={pref3}
+                                onValueChange={setPref3}
+                                disabled={allocation?.finalized || savePreferencesMutation.isPending}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select Pathway" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {PATHWAY_OPTIONS.map((opt) => (
+                                    <SelectItem key={opt.value} value={opt.value}>
+                                      {opt.value === "STEM" ? "STEM" : opt.value === "Social_Sciences" ? "Social Sciences" : "Arts & Sports"}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] text-muted-foreground uppercase font-semibold">Senior Secondary School</label>
+                              <Input
+                                placeholder="e.g. Kenya High School"
+                                value={school3}
+                                onChange={(e) => setSchool3(e.target.value)}
+                                disabled={allocation?.finalized || savePreferencesMutation.isPending}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Choice 4 */}
+                        <div className="p-3 border rounded-lg bg-muted/20 space-y-3">
+                          <label className="text-xs font-bold text-foreground">4th Choice Preference</label>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-[10px] text-muted-foreground uppercase font-semibold">Pathway</label>
+                              <Select
+                                value={pref4}
+                                onValueChange={setPref4}
+                                disabled={allocation?.finalized || savePreferencesMutation.isPending}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select Pathway" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {PATHWAY_OPTIONS.map((opt) => (
+                                    <SelectItem key={opt.value} value={opt.value}>
+                                      {opt.value === "STEM" ? "STEM" : opt.value === "Social_Sciences" ? "Social Sciences" : "Arts & Sports"}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] text-muted-foreground uppercase font-semibold">Senior Secondary School</label>
+                              <Input
+                                placeholder="e.g. Lenana School"
+                                value={school4}
+                                onChange={(e) => setSchool4(e.target.value)}
+                                disabled={allocation?.finalized || savePreferencesMutation.isPending}
+                              />
+                            </div>
+                          </div>
                         </div>
                       </CardContent>
                       <CardFooter>
@@ -516,6 +621,26 @@ export default function Pathways() {
                             ))}
                           </SelectContent>
                         </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-muted-foreground">Allocated Senior Secondary School</label>
+                        <Input
+                          placeholder="e.g. Alliance High School"
+                          value={allocatedSchoolName}
+                          onChange={(e) => setAllocatedSchoolName(e.target.value)}
+                          disabled={allocation?.finalized || saveAllocationMutation.isPending}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-muted-foreground">School Code</label>
+                        <Input
+                          placeholder="e.g. 12345678"
+                          value={allocatedSchoolCode}
+                          onChange={(e) => setAllocatedSchoolCode(e.target.value)}
+                          disabled={allocation?.finalized || saveAllocationMutation.isPending}
+                        />
                       </div>
 
                       <div className="space-y-2">
@@ -701,22 +826,29 @@ export default function Pathways() {
                       </div>
                     ) : (
                       <div className="space-y-3.5">
-                        {[1, 2, 3].map((rank) => {
+                        {[1, 2, 3, 4].map((rank) => {
                           const pref = preferences.find(p => p.rank === rank);
                           const pathwayLabel = pref 
                             ? (pref.pathway === "STEM" ? "STEM" : pref.pathway === "Social_Sciences" ? "Social Sciences" : "Arts & Sports") 
                             : "Not set";
                           return (
-                            <div key={rank} className="flex items-center justify-between p-3.5 border rounded-lg bg-card">
-                              <div className="flex items-center gap-2.5">
-                                <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">
-                                  {rank}
-                                </span>
-                                <span className="text-sm font-semibold text-muted-foreground">Choice Rank</span>
+                            <div key={rank} className="p-3.5 border rounded-lg bg-card space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2.5">
+                                  <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">
+                                    {rank}
+                                  </span>
+                                  <span className="text-sm font-semibold text-muted-foreground">Choice Rank</span>
+                                </div>
+                                <Badge variant={pref ? "default" : "outline"} className="text-xs px-2.5 py-0.5">
+                                  {pathwayLabel}
+                                </Badge>
                               </div>
-                              <Badge variant={pref ? "default" : "outline"} className="text-xs px-2.5 py-0.5">
-                                {pathwayLabel}
-                              </Badge>
+                              {pref?.preferred_school_name && (
+                                <div className="text-xs text-muted-foreground pl-8">
+                                  School: <strong className="text-foreground">{pref.preferred_school_name}</strong>
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -769,6 +901,28 @@ export default function Pathways() {
                             {allocation.pathway === "STEM" ? "STEM" : allocation.pathway === "Social_Sciences" ? "Social Sciences" : "Arts & Sports"}
                           </span>
                         </div>
+
+                        {allocation.allocated_school_name && (
+                          <div className="p-4 border rounded-xl bg-card">
+                            <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block mb-1">
+                              Allocated Senior Secondary School
+                            </label>
+                            <span className="text-lg font-bold text-foreground">
+                              {allocation.allocated_school_name}
+                            </span>
+                          </div>
+                        )}
+
+                        {allocation.allocated_school_code && (
+                          <div className="p-4 border rounded-xl bg-card">
+                            <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block mb-1">
+                              School Code
+                            </label>
+                            <span className="text-lg font-mono font-bold text-foreground">
+                              {allocation.allocated_school_code}
+                            </span>
+                          </div>
+                        )}
 
                         {allocation.kjsea_score !== null && (
                           <div className="p-4 border rounded-xl bg-card">

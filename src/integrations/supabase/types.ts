@@ -624,6 +624,7 @@ export type Database = {
           school_categories: string[]
           status: string
           subcounty: string | null
+          category: string
           updated_at: string
         }
         Insert: {
@@ -643,6 +644,7 @@ export type Database = {
           school_categories?: string[]
           status?: string
           subcounty?: string | null
+          category?: string
           updated_at?: string
         }
         Update: {
@@ -662,6 +664,7 @@ export type Database = {
           school_categories?: string[]
           status?: string
           subcounty?: string | null
+          category?: string
           updated_at?: string
         }
         Relationships: []
@@ -1187,6 +1190,7 @@ export type Database = {
           pathway: string
           academic_year: string
           recorded_by: string | null
+          preferred_school_name: string | null
           created_at: string
           updated_at: string
         }
@@ -1198,6 +1202,7 @@ export type Database = {
           pathway: string
           academic_year: string
           recorded_by?: string | null
+          preferred_school_name?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1209,6 +1214,7 @@ export type Database = {
           pathway?: string
           academic_year?: string
           recorded_by?: string | null
+          preferred_school_name?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1249,6 +1255,8 @@ export type Database = {
           finalized_at: string | null
           finalized_by: string | null
           notes: string | null
+          allocated_school_name: string | null
+          allocated_school_code: string | null
           created_at: string
           updated_at: string
         }
@@ -1264,6 +1272,8 @@ export type Database = {
           finalized_at?: string | null
           finalized_by?: string | null
           notes?: string | null
+          allocated_school_name?: string | null
+          allocated_school_code?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1279,6 +1289,8 @@ export type Database = {
           finalized_at?: string | null
           finalized_by?: string | null
           notes?: string | null
+          allocated_school_name?: string | null
+          allocated_school_code?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1456,6 +1468,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_platform_stats: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]

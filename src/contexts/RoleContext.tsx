@@ -124,47 +124,53 @@ export function RoleProvider({ children }: { children: ReactNode }) {
       }
 
       if (authUser.role === "parent") {
-        const { data: parentByUserId } = await supabase
+        const { data: parentRecord } = await supabase
           .from("parents")
           .select("id, full_name, phone, email, user_id")
           .eq("user_id", authUser.id)
           .maybeSingle();
 
-        let parentRecord = parentByUserId;
-
-        if (!parentRecord && authUser.email) {
-          const { data: parentByEmail } = await supabase
-            .from("parents")
-            .select("id, full_name, phone, email, user_id")
-            .eq("email", authUser.email)
-            .maybeSingle();
-
-          parentRecord = parentByEmail ?? null;
-
-          if (parentRecord && parentRecord.user_id !== authUser.id) {
-            await supabase
-              .from("parents")
-              .update({ user_id: authUser.id })
-              .eq("id", parentRecord.id);
-            parentRecord = { ...parentRecord, user_id: authUser.id };
-          }
-        }
-
         if (parentRecord) {
-          const { data: children } = await supabase
-            .from("learners")
-            .select("id, full_name, admission_number, assessment_number, status, classes:class_id (grade, stream)")
-            .or(`parent_id.eq.${parentRecord.id},parent_id_secondary.eq.${parentRecord.id}`)
-            .order("full_name");
+          const { data: parentLinks } = await supabase
+            .from("parent_links")
+            .select(`
+              learner_id,
+              learners (
+                id,
+                full_name,
+                admission_number,
+                assessment_number,
+                status,
+                classes:class_id (grade, stream)
+              )
+            `)
+            .eq("parent_id", parentRecord.id);
 
-          const childIds = children?.map((child) => child.id) || [];
+          const children = (parentLinks || [])
+            .map((link) => {
+              const learner = link.learners;
+              if (!learner) return null;
+              return {
+                id: learner.id,
+                full_name: learner.full_name,
+                admission_number: learner.admission_number,
+                assessment_number: learner.assessment_number,
+                status: learner.status,
+                classes: Array.isArray(learner.classes) ? learner.classes[0] : learner.classes,
+              };
+            })
+            .filter((l): l is NonNullable<typeof l> => !!l);
+
+          children.sort((a, b) => a.full_name.localeCompare(b.full_name));
+
+          const childIds = children.map((child) => child.id);
 
           nextUser = {
             ...nextUser,
             name: parentRecord.full_name || nextUser.name,
             email: parentRecord.email || nextUser.email,
             childrenIds: childIds,
-            children: children || [],
+            children: children,
           };
 
           if (isActive) {

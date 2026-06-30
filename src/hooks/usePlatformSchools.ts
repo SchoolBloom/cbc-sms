@@ -34,6 +34,7 @@ export interface CreateSchoolInput {
   administrator_name: string;
   administrator_email: string;
   administrator_phone?: string;
+  category?: string;
 }
 
 export function usePlatformSchools() {
@@ -74,6 +75,7 @@ export function useCreateSchool() {
           administrator_phone: input.administrator_phone || null,
           status: "onboarding",
           active_status: false,
+          category: input.category || "Public",
         })
         .select("id")
         .single();

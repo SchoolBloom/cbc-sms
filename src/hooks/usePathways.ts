@@ -9,6 +9,7 @@ export interface PathwayPreference {
   pathway: 'STEM' | 'Social_Sciences' | 'Arts_Sports';
   academic_year: string;
   recorded_by: string | null;
+  preferred_school_name: string | null;
 }
 
 export interface PathwayAllocation {
@@ -22,6 +23,8 @@ export interface PathwayAllocation {
   finalized_at: string | null;
   finalized_by: string | null;
   notes: string | null;
+  allocated_school_name: string | null;
+  allocated_school_code: string | null;
 }
 
 export function usePathwayPreferences(learnerId?: string) {
@@ -71,7 +74,7 @@ export function useSavePathwayPreferences() {
     }: {
       learnerId: string;
       academicYear: string;
-      preferences: { rank: number; pathway: 'STEM' | 'Social_Sciences' | 'Arts_Sports' }[];
+      preferences: { rank: number; pathway: 'STEM' | 'Social_Sciences' | 'Arts_Sports'; preferred_school_name: string }[];
     }) => {
       // First delete existing preferences for this learner and year
       const { error: deleteError } = await supabase
@@ -89,6 +92,7 @@ export function useSavePathwayPreferences() {
           rank: p.rank,
           pathway: p.pathway,
           academic_year: academicYear,
+          preferred_school_name: p.preferred_school_name || null,
         }));
 
         const { error: insertError } = await supabase
@@ -123,6 +127,8 @@ export function useSavePathwayAllocation() {
       notes,
       finalized,
       userId,
+      allocatedSchoolName,
+      allocatedSchoolCode,
     }: {
       learnerId: string;
       academicYear: string;
@@ -132,6 +138,8 @@ export function useSavePathwayAllocation() {
       notes: string | null;
       finalized: boolean;
       userId: string;
+      allocatedSchoolName?: string | null;
+      allocatedSchoolCode?: string | null;
     }) => {
       // Fetch existing allocation to see if we should insert or update
       const { data: existing } = await supabase
@@ -149,6 +157,8 @@ export function useSavePathwayAllocation() {
         allocation_source: allocationSource,
         notes,
         finalized,
+        allocated_school_name: allocatedSchoolName || null,
+        allocated_school_code: allocatedSchoolCode || null,
       };
 
       if (finalized) {

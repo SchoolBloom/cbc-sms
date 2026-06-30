@@ -24,6 +24,13 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Loader2, UserPlus, Power } from "lucide-react";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   usePlatformSchools,
   useCreateSchool,
   useProvisionSchoolAdmin,
@@ -48,6 +55,7 @@ const defaultForm: CreateSchoolInput = {
   administrator_name: "",
   administrator_email: "",
   administrator_phone: "",
+  category: "Public",
 };
 
 export default function PlatformSchools() {
@@ -197,6 +205,22 @@ export default function PlatformSchools() {
                     onChange={(e) => setForm({ ...form, subcounty: e.target.value })}
                   />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="school-category">School Category</Label>
+                <Select
+                  value={form.category}
+                  onValueChange={(val) => setForm({ ...form, category: val })}
+                >
+                  <SelectTrigger id="school-category">
+                    <SelectValue placeholder="Select Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Public">Public</SelectItem>
+                    <SelectItem value="Private">Private</SelectItem>
+                    <SelectItem value="Special_Needs">Special Needs</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="border-t pt-4 space-y-3">
                 <p className="text-sm font-medium">Initial School Administrator</p>
