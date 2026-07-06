@@ -134,7 +134,7 @@ export default function Classes() {
   const canWrite = user?.role === "admin";
 
   const teacherMap = useMemo(
-    () => new Map(teachers.map((teacher) => [teacher.user_id, teacher.full_name])),
+    () => new Map(teachers.map((teacher) => [teacher.id, teacher.full_name])),
     [teachers]
   );
   const visibleClasses = classes.filter((cls) => allowedGrades.includes(cls.grade));
@@ -248,7 +248,7 @@ export default function Classes() {
                             <SelectContent>
                               <SelectItem value="unassigned">Unassigned</SelectItem>
                               {teachers.map((teacher) => (
-                                <SelectItem key={teacher.user_id} value={teacher.user_id}>
+                                <SelectItem key={teacher.id} value={teacher.id}>
                                   {teacher.full_name}
                                 </SelectItem>
                               ))}

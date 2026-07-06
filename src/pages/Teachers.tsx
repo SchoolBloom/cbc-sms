@@ -271,10 +271,10 @@ export default function Teachers() {
                     </div>
                   )}
                   <div className="mt-2 text-xs text-muted-foreground">
-                    Classes: {classesByTeacher.get(teacher.user_id)?.join(", ") || "Unassigned"}
+                    Classes: {classesByTeacher.get(teacher.id)?.join(", ") || "Unassigned"}
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    Subjects: {subjectsByTeacher.get(teacher.user_id)?.join(", ") || "Unassigned"}
+                    Subjects: {subjectsByTeacher.get(teacher.id)?.join(", ") || "Unassigned"}
                   </div>
                 </div>
               </div>

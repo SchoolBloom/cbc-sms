@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useAcademicYear } from "@/hooks/useAcademicYear";
 import { useSchoolScope } from "@/hooks/useSchoolScope";
 import { useStudentAssessmentRecords } from "@/hooks/useAssessments";
+import { useCurrentTeacherId } from "@/hooks/useTeachers";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,7 @@ export default function Dashboard() {
   const { data: platformStats, isLoading: loadingStats } = usePlatformStats(user?.role === "system_admin");
   
   const currentAcademicYear = academicYear?.label || new Date().getFullYear().toString();
+  const { data: teacherRecordId } = useCurrentTeacherId();
 
   const selectedChild = user?.children?.find((child) => child.id === selectedChildId);
   const childInitials = selectedChild?.full_name
@@ -126,19 +128,19 @@ export default function Dashboard() {
 
   // ================= TEACHER QUERIES =================
   const { data: teacherClasses = [] } = useQuery({
-    queryKey: ["teacher-classes", user?.id],
+    queryKey: ["teacher-classes", teacherRecordId],
     queryFn: async () => {
-      if (user?.role !== "teacher") return [];
+      if (user?.role !== "teacher" || !teacherRecordId) return [];
       const { data, error } = await supabase
         .from("classes")
         .select("id, grade, stream, teacher_id")
-        .eq("teacher_id", user.id)
+        .eq("teacher_id", teacherRecordId)
         .order("grade")
         .order("stream");
       if (error) throw error;
       return data || [];
     },
-    enabled: user?.role === "teacher",
+    enabled: user?.role === "teacher" && !!teacherRecordId,
   });
 
   const teacherClassIds = useMemo(() => teacherClasses.map((cls) => cls.id), [teacherClasses]);

@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Search, Filter, Download, MoreHorizontal, Eye, Edit, Trash2, FileText, Loader2, ArrowLeftRight } from "lucide-react";
+import { Search, Filter, Download, MoreHorizontal, Eye, Edit, Trash2, FileText, Loader2, ArrowLeftRight, GraduationCap } from "lucide-react";
 import { NEMISExportButton, KNECRegistrationExportButton } from "@/components/ui/ExportButtons";
 import {
   DropdownMenu,
@@ -41,8 +41,20 @@ const statusColors = {
   active: "bg-success/10 text-success border-success/20",
   transferred: "bg-muted text-muted-foreground border-muted",
   completed: "bg-primary/10 text-primary border-primary/20",
+  cleared: "bg-primary/5 text-primary/80 border-primary/15",
   suspended: "bg-destructive/10 text-destructive border-destructive/20",
 };
+
+const CLEAR_ELIGIBLE_GRADES = new Set(["Grade 9", "Grade 12"]);
+
+function isClearEligible(learner: Learner) {
+  const grade = learner.classes?.grade;
+  return !!grade && CLEAR_ELIGIBLE_GRADES.has(grade);
+}
+
+function isInactiveLearner(status: string) {
+  return ["transferred", "completed", "cleared", "suspended"].includes(status);
+}
 
 export default function Learners() {
   const navigate = useNavigate();
@@ -228,7 +240,7 @@ export default function Learners() {
                     </td>
                     <td className="px-4 py-3">
                       <Badge variant="outline" className={statusColors[learner.status as keyof typeof statusColors]}>
-                        {learner.status}
+                        {learner.status === "cleared" ? "cleared (alumni)" : learner.status}
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -255,7 +267,7 @@ export default function Learners() {
                               <AlertDialogTrigger asChild>
                                 <DropdownMenuItem
                                   className="gap-2"
-                                  disabled={learner.status === "transferred" || learner.status === "completed"}
+                                  disabled={isInactiveLearner(learner.status)}
                                   onSelect={(event) => event.preventDefault()}
                                 >
                                   <ArrowLeftRight className="w-4 h-4" /> Transfer
@@ -281,6 +293,45 @@ export default function Learners() {
                                     disabled={updateLearnerStatus.isPending}
                                   >
                                     {updateLearnerStatus.isPending ? "Transferring..." : "Transfer"}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                          {canWrite && isClearEligible(learner) && (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <DropdownMenuItem
+                                  className="gap-2"
+                                  disabled={isInactiveLearner(learner.status)}
+                                  onSelect={(event) => event.preventDefault()}
+                                >
+                                  <GraduationCap className="w-4 h-4" /> Clear
+                                </DropdownMenuItem>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Clear learner as alumni?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    {learner.classes?.grade === "Grade 9"
+                                      ? `This marks ${learner.full_name} as cleared from JSS. They are no longer an active learner at this school and will be recorded as alumni while advancing to Senior Secondary.`
+                                      : `This marks ${learner.full_name} as cleared. They are no longer an active learner and will be recorded as alumni after completing their studies.`}
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() =>
+                                      updateLearnerStatus.mutate({
+                                        learnerIds: [learner.id],
+                                        status: "cleared",
+                                        clearClass: true,
+                                        successMessage: `${learner.full_name} cleared and recorded as alumni`,
+                                      })
+                                    }
+                                    disabled={updateLearnerStatus.isPending}
+                                  >
+                                    {updateLearnerStatus.isPending ? "Clearing..." : "Clear"}
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>

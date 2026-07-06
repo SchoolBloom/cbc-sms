@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { toast } from "sonner";
+import { useSchoolScope } from "@/hooks/useSchoolScope";
 
 export type Assessment = Tables<"assessments">;
 export type AssessmentInsert = TablesInsert<"assessments">;
@@ -245,7 +246,7 @@ export interface AssessmentRecordInsert {
   strand_name: string | null;
   sub_strand_name: string | null;
   learning_area: string;
-  teacher_id: string;
+  teacher_id?: string | null;
   term: number;
   year: string;
   rubric_score: 'Exceeds' | 'Meets' | 'Approaches' | 'Below';
@@ -298,12 +299,31 @@ export function useSubStrands(strandId?: string) {
 
 export function useCreateAssessmentRecord() {
   const queryClient = useQueryClient();
+  const { schoolId } = useSchoolScope();
 
   return useMutation({
     mutationFn: async (record: AssessmentRecordInsert) => {
+      if (!schoolId) {
+        throw new Error(
+          "No school ID found. Please make sure your administrator account is linked to a school."
+        );
+      }
+
+      // Resolve the teachers table ID from the auth user_id.
+      // teacher_id in assessment_records references teachers.id, not auth.uid().
+      let resolvedTeacherId: string | null = record.teacher_id ?? null;
+      if (resolvedTeacherId) {
+        const { data: teacherRow } = await supabase
+          .from("teachers")
+          .select("id")
+          .eq("user_id", resolvedTeacherId)
+          .maybeSingle();
+        resolvedTeacherId = teacherRow?.id ?? null;
+      }
+
       const { data, error } = await supabase
         .from("assessment_records")
-        .insert(record)
+        .insert({ ...record, teacher_id: resolvedTeacherId, school_id: schoolId })
         .select()
         .single();
 

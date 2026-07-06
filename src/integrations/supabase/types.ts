@@ -1249,6 +1249,7 @@ export type Database = {
           notes: string | null
           allocated_school_name: string | null
           allocated_school_code: string | null
+          allocated_school_id: string | null
           created_at: string
           updated_at: string
         }
@@ -1266,6 +1267,7 @@ export type Database = {
           notes?: string | null
           allocated_school_name?: string | null
           allocated_school_code?: string | null
+          allocated_school_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1283,6 +1285,7 @@ export type Database = {
           notes?: string | null
           allocated_school_name?: string | null
           allocated_school_code?: string | null
+          allocated_school_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1307,6 +1310,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "pathway_allocations_allocated_school_id_fkey"
+            columns: ["allocated_school_id"]
+            isOneToOne: false
+            referencedRelation: "schools"
+            referencedColumns: ["id"]
           }
         ]
       }
@@ -1474,6 +1484,30 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      admit_transfer_learner: {
+        Args: {
+          p_target_school_id: string
+          p_identifier_type: string
+          p_identifier_value: string
+          p_new_admission_number: string
+          p_new_class_id: string
+        }
+        Returns: Json
+      }
+      get_incoming_pathway_allocations: {
+        Args: {
+          p_school_id?: string
+        }
+        Returns: Json
+      }
+      set_pathway_preferences_lock: {
+        Args: {
+          target_learner_id: string
+          target_academic_year: string
+          lock_state: boolean
+        }
+        Returns: undefined
       }
     }
     Enums: {

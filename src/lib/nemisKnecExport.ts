@@ -147,7 +147,7 @@ export async function fetchAssessmentsForKNECExport(
   if (error) throw error;
 
   return (assessments || [])
-    .filter((a) => a.learner?.upi_number)
+    .filter((a) => a.learner?.assessment_number)
     .map((assessment) => ({
       upi_number: assessment.learner?.upi_number || "",
       assessment_number: assessment.learner?.assessment_number || "",

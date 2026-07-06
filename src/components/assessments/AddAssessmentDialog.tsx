@@ -24,6 +24,7 @@ import { useCreateAssessment, getLearningAreasForCategories, PERFORMANCE_LEVELS 
 import { useRole } from "@/contexts/RoleContext";
 import { useSubjectAssignments } from "@/hooks/useSubjects";
 import { useSchoolScope } from "@/hooks/useSchoolScope";
+import { useCurrentTeacherId } from "@/hooks/useTeachers";
 
 export function AddAssessmentDialog() {
   const [open, setOpen] = useState(false);
@@ -43,16 +44,17 @@ export function AddAssessmentDialog() {
   const { data: students } = useLearners();
   const { data: subjectAssignments = [] } = useSubjectAssignments();
   const createAssessment = useCreateAssessment();
+  const { data: teacherRecordId } = useCurrentTeacherId();
 
   const allowedClassIds = useMemo(() => {
     if (user.role !== "teacher") return null;
 
     return new Set(
       subjectAssignments
-        .filter((assignment) => assignment.teacher_id === user.id)
+        .filter((assignment) => assignment.teacher_id === teacherRecordId)
         .map((assignment) => assignment.class_id)
     );
-  }, [subjectAssignments, user.id, user.role]);
+  }, [subjectAssignments, teacherRecordId, user.role]);
 
   const filteredClasses = useMemo(() => {
     if (!classes) return [];
@@ -75,7 +77,7 @@ export function AddAssessmentDialog() {
     }
 
     const assignedSubjectNames = subjectAssignments
-      .filter((assignment) => assignment.teacher_id === user.id)
+      .filter((assignment) => assignment.teacher_id === teacherRecordId)
       .filter((assignment) => (classId ? assignment.class_id === classId : true))
       .map((assignment) => assignment.subject?.name)
       .filter(Boolean) as string[];
@@ -85,7 +87,7 @@ export function AddAssessmentDialog() {
     );
 
     return unique.sort((a, b) => a.localeCompare(b));
-  }, [categories, classId, subjectAssignments, user.id, user.role]);
+  }, [categories, classId, subjectAssignments, teacherRecordId, user.role]);
 
   const learningAreaPlaceholder =
     user.role === "teacher"

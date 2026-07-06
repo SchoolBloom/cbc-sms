@@ -584,7 +584,9 @@ export default function Settings() {
                   <div className="flex items-center justify-between rounded-xl border border-border/50 px-4 py-3">
                     <div className="space-y-1">
                       <Label htmlFor="isCurrent">Current Academic Year</Label>
-                      <p className="text-sm text-muted-foreground">Use this year for attendance, fees, and assessments by default.</p>
+                      <p className="text-sm text-muted-foreground">
+                        Use this year for attendance, fees, and assessments by default. Setting a new current year promotes learners to the next grade, except Grade 9 students who transition to Senior Secondary via pathway placement and admission at the receiving school.
+                      </p>
                     </div>
                     <Switch
                       id="isCurrent"

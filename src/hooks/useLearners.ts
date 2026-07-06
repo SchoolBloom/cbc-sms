@@ -73,6 +73,7 @@ export function useUpdateLearnerStatus() {
       learnerIds: string[];
       status: string;
       clearClass?: boolean;
+      successMessage?: string;
     }) => {
       if (learnerIds.length === 0) return;
 
@@ -82,9 +83,9 @@ export function useUpdateLearnerStatus() {
       const { error } = await supabase.from("learners").update(updates).in("id", learnerIds);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["learners"] });
-      toast.success("Learner records updated");
+      toast.success(variables.successMessage || "Learner records updated");
     },
     onError: (error) => {
       console.error("Error updating learners:", error);

@@ -12,6 +12,7 @@ const statusColors = {
   active: "bg-success/10 text-success border-success/20",
   transferred: "bg-muted text-muted-foreground border-muted",
   completed: "bg-primary/10 text-primary border-primary/20",
+  cleared: "bg-primary/5 text-primary/80 border-primary/15",
   suspended: "bg-destructive/10 text-destructive border-destructive/20",
 };
 
@@ -69,7 +70,7 @@ export function LearnerProfileDialog({ learner, open, onOpenChange }: LearnerPro
             <div>
               <p className="text-xs text-muted-foreground">Status</p>
               <Badge variant="outline" className={statusColors[learner.status as keyof typeof statusColors]}>
-                {learner.status}
+                {learner.status === "cleared" ? "cleared (alumni)" : learner.status}
               </Badge>
             </div>
             <div>

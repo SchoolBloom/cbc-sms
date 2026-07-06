@@ -21,6 +21,7 @@ import { useClasses } from "@/hooks/useClasses";
 import { useLearners } from "@/hooks/useLearners";
 import { useSubjectAssignments } from "@/hooks/useSubjects";
 import { useSchoolScope } from "@/hooks/useSchoolScope";
+import { useCurrentTeacherId } from "@/hooks/useTeachers";
 import { SBAIngestionTab } from "@/components/assessments/SBAIngestionTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -71,6 +72,7 @@ export default function Assessments() {
   const { data: subjectAssignments = [] } = useSubjectAssignments();
 
   const createRecord = useCreateAssessmentRecord();
+  const { data: teacherRecordId } = useCurrentTeacherId();
 
   // Parent Portal Realtime subscription
   useEffect(() => {
@@ -106,10 +108,10 @@ export default function Assessments() {
 
     return new Set(
       subjectAssignments
-        .filter((assignment) => assignment.teacher_id === user.id)
+        .filter((assignment) => assignment.teacher_id === teacherRecordId)
         .map((assignment) => assignment.class_id)
     );
-  }, [subjectAssignments, user.id, user.role]);
+  }, [subjectAssignments, teacherRecordId, user.role]);
 
   const filteredClasses = useMemo(() => {
     if (!classes) return [];
@@ -133,7 +135,7 @@ export default function Assessments() {
     }
 
     const assignedSubjectNames = subjectAssignments
-      .filter((assignment) => assignment.teacher_id === user.id)
+      .filter((assignment) => assignment.teacher_id === teacherRecordId)
       .filter((assignment) => (classId ? assignment.class_id === classId : true))
       .map((assignment) => assignment.subject?.name)
       .filter(Boolean) as string[];
@@ -143,7 +145,7 @@ export default function Assessments() {
     );
 
     return unique.sort((a, b) => a.localeCompare(b));
-  }, [categories, classId, subjectAssignments, user.id, user.role]);
+  }, [categories, classId, subjectAssignments, teacherRecordId, user.role]);
 
   const learningAreaPlaceholder =
     user.role === "teacher"
@@ -184,7 +186,7 @@ export default function Assessments() {
     e.preventDefault();
 
     if (!canWrite) return;
-    if (!studentId || !strandName || !subStrandName || !rubricScore || !term || !year) {
+    if (!studentId || !learningArea || !strandName || !subStrandName || !rubricScore || !term || !year) {
       return;
     }
 
@@ -194,7 +196,7 @@ export default function Assessments() {
         strand_name: strandName,
         sub_strand_name: subStrandName,
         learning_area: learningArea,
-        teacher_id: user.id,
+        teacher_id: user.id,  // Will be resolved to teachers.id in the hook
         term: parseInt(term),
         year,
         rubric_score: rubricScore,
@@ -351,13 +353,12 @@ export default function Assessments() {
         </div>
 
         {/* Core Competency Radar Chart */}
-        {studentRecords && studentRecords.length > 0 && (
+        {Object.values(latestBySubject).length > 0 && (
           <div className="mb-6">
             <CompetencyRadarChart
-              data={studentRecords.map((a) => ({
+              data={Object.values(latestBySubject).map((a) => ({
                 subject: a.learning_area || "Other",
-                level: a.rubric_score,
-                score: a.rubric_score === "Exceeds" ? 4 : a.rubric_score === "Meets" ? 3 : a.rubric_score === "Approaches" ? 2 : 1,
+                level: (a.rubric_score || "").toLowerCase(),
               }))}
             />
           </div>
@@ -576,6 +577,7 @@ export default function Assessments() {
               disabled={
                 !canWrite ||
                 !studentId ||
+                !learningArea ||
                 !strandName ||
                 !subStrandName ||
                 !rubricScore ||

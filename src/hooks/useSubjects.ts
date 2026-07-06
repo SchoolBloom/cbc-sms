@@ -139,9 +139,9 @@ export function useCreateSubjectAssignment() {
       queryClient.invalidateQueries({ queryKey: ["subject-assignments"] });
       toast.success("Assignment saved");
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       console.error("Error assigning subject:", error);
-      toast.error("Failed to assign subject");
+      toast.error(error.message || "Failed to assign subject");
     },
   });
 }

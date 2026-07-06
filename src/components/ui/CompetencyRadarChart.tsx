@@ -35,15 +35,23 @@ interface CompetencyRadarChartProps {
 /**
  * Map performance levels to numeric scores for radar chart
  */
+function normalizeLevel(level?: string): string {
+  return (level || "").trim().toLowerCase();
+}
+
 function getLevelScore(level?: string): number {
-  switch (level) {
+  switch (normalizeLevel(level)) {
     case "exceeds":
+    case "ee":
       return 100;
     case "meets":
+    case "me":
       return 75;
     case "approaches":
+    case "ae":
       return 50;
     case "below":
+    case "be":
       return 25;
     default:
       return 0;
@@ -54,7 +62,7 @@ function getLevelScore(level?: string): number {
  * Get color for performance level
  */
 function getLevelColor(level?: string): string {
-  const found = PERFORMANCE_LEVELS.find((p) => p.level === level);
+  const found = PERFORMANCE_LEVELS.find((p) => p.level === normalizeLevel(level));
   return found?.color || "bg-muted";
 }
 
@@ -142,7 +150,7 @@ export function CompetencyRadarChart({
                         </div>
                         {data.level && (
                           <Badge className={`mt-2 ${getLevelColor(data.level)}`}>
-                            {PERFORMANCE_LEVELS.find((p) => p.level === data.level)?.code || data.level}
+                            {PERFORMANCE_LEVELS.find((p) => p.level === normalizeLevel(data.level))?.code || data.level}
                           </Badge>
                         )}
                       </div>

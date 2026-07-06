@@ -75,6 +75,15 @@ export function SBAIngestionTab() {
           return;
         }
 
+        // Resolve the teachers table ID from the auth user_id
+        let resolvedTeacherId: string | null = null;
+        const { data: teacherRow } = await supabase
+          .from("teachers")
+          .select("id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        resolvedTeacherId = teacherRow?.id ?? null;
+
         // Validate each row
         for (let i = 0; i < parsedData.length; i++) {
           const row = parsedData[i];
@@ -175,7 +184,7 @@ export function SBAIngestionTab() {
             learner_id: learner.id,
             strand_id: strand.id,
             sub_strand_id: subStrand.id,
-            teacher_id: user.id,
+            teacher_id: resolvedTeacherId,
             term: termNum,
             year: yearStr,
             rubric_score: resolvedScore,

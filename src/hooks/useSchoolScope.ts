@@ -27,33 +27,46 @@ export function useSchoolScope() {
       let resolvedSchoolId = profile?.school_id || null;
 
       if (!resolvedSchoolId) {
-        const [{ data: adminSchool }, { data: teacher }, { data: parentByUserId }, { data: parentByEmail }] =
-          await Promise.all([
-            supabase
-              .from("schools")
-              .select("id")
-              .eq("admin_user_id", user.id)
-              .maybeSingle(),
-            supabase
-              .from("teachers")
-              .select("school_id")
-              .eq("user_id", user.id)
-              .maybeSingle(),
-            supabase
-              .from("parents")
-              .select("school_id")
-              .eq("user_id", user.id)
-              .maybeSingle(),
-            user.email
-              ? supabase
-                  .from("parents")
-                  .select("school_id")
-                  .ilike("email", user.email)
-                  .maybeSingle()
-              : Promise.resolve({ data: null }),
-          ]);
+        const [
+          { data: adminRole },
+          { data: adminSchool },
+          { data: teacher },
+          { data: parentByUserId },
+          { data: parentByEmail },
+        ] = await Promise.all([
+          supabase
+            .from("user_roles")
+            .select("school_id")
+            .eq("user_id", user.id)
+            .eq("role", "admin")
+            .not("school_id", "is", null)
+            .maybeSingle(),
+          supabase
+            .from("schools")
+            .select("id")
+            .eq("admin_user_id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("teachers")
+            .select("school_id")
+            .eq("user_id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("parents")
+            .select("school_id")
+            .eq("user_id", user.id)
+            .maybeSingle(),
+          user.email
+            ? supabase
+                .from("parents")
+                .select("school_id")
+                .ilike("email", user.email)
+                .maybeSingle()
+            : Promise.resolve({ data: null }),
+        ]);
 
         resolvedSchoolId =
+          adminRole?.school_id ||
           adminSchool?.id ||
           teacher?.school_id ||
           parentByUserId?.school_id ||

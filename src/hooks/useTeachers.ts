@@ -26,6 +26,27 @@ export function useTeachers() {
   });
 }
 
+/**
+ * Resolves the current auth user's teachers table PK (teachers.id).
+ * Returns null if the user has no row in the teachers table (e.g. a pure admin).
+ */
+export function useCurrentTeacherId() {
+  return useQuery({
+    queryKey: ["current-teacher-id"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data, error } = await supabase
+        .from("teachers")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.id ?? null;
+    },
+  });
+}
+
 export function useUpdateTeacher() {
   const queryClient = useQueryClient();
 
@@ -105,12 +126,21 @@ export function useTransferTeacher() {
 
   return useMutation({
     mutationFn: async (userId: string) => {
-      const { error: classError } = await supabase
-        .from("classes")
-        .update({ teacher_id: null })
-        .eq("teacher_id", userId);
+      // First resolve the teachers table ID from the auth user_id
+      const { data: teacherRow } = await supabase
+        .from("teachers")
+        .select("id")
+        .eq("user_id", userId)
+        .maybeSingle();
 
-      if (classError) throw classError;
+      if (teacherRow?.id) {
+        const { error: classError } = await supabase
+          .from("classes")
+          .update({ teacher_id: null })
+          .eq("teacher_id", teacherRow.id);
+
+        if (classError) throw classError;
+      }
 
       const { error: teacherError } = await supabase
         .from("teachers")
