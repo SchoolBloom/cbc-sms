@@ -43,16 +43,16 @@ function getLevelScore(level?: string): number {
   switch (normalizeLevel(level)) {
     case "exceeds":
     case "ee":
-      return 100;
+      return 4;
     case "meets":
     case "me":
-      return 75;
+      return 3;
     case "approaches":
     case "ae":
-      return 50;
+      return 2;
     case "below":
     case "be":
-      return 25;
+      return 1;
     default:
       return 0;
   }
@@ -90,9 +90,22 @@ export function CompetencyRadarChart({
   const chartData = Array.from(competencyMap.entries()).map(([subject, { total, count }]) => ({
     subject: subject.length > 15 ? subject.substring(0, 12) + "..." : subject,
     fullSubject: subject,
-    score: Math.round(total / count),
+    score: Number((total / count).toFixed(1)),
     level: data.find((d) => d.subject === subject)?.level,
   }));
+
+  // Recharts requires at least 3 points to render a polygon. 
+  // Pad with dummy data if there are less than 3 data points.
+  let paddingCount = 0;
+  while (chartData.length > 0 && chartData.length < 3) {
+    paddingCount++;
+    chartData.push({
+      subject: " ".repeat(paddingCount), // unique spaces so recharts treats them as distinct keys if needed
+      fullSubject: "Pending",
+      score: 0,
+      level: undefined,
+    });
+  }
 
   if (chartData.length === 0) {
     return (
@@ -125,9 +138,17 @@ export function CompetencyRadarChart({
               />
               <PolarRadiusAxis
                 angle={30}
-                domain={[0, 100]}
+                domain={[0, 4]}
                 tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
+                tickFormatter={(value) => {
+                  if (value === 1) return "BE (1)";
+                  if (value === 2) return "AE (2)";
+                  if (value === 3) return "ME (3)";
+                  if (value === 4) return "EE (4)";
+                  return "";
+                }}
                 axisLine={false}
+                tickCount={5}
               />
               <Radar
                 name="Score"
@@ -146,7 +167,7 @@ export function CompetencyRadarChart({
                         <p className="font-medium text-foreground">{data.fullSubject}</p>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="text-sm text-muted-foreground">Score:</span>
-                          <span className="font-semibold">{data.score}%</span>
+                          <span className="font-semibold">{data.score}</span>
                         </div>
                         {data.level && (
                           <Badge className={`mt-2 ${getLevelColor(data.level)}`}>

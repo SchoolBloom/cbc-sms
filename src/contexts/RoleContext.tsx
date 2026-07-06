@@ -124,13 +124,15 @@ export function RoleProvider({ children }: { children: ReactNode }) {
       }
 
       if (authUser.role === "parent") {
-        const { data: parentRecord } = await supabase
+        const { data: parentRecords } = await supabase
           .from("parents")
           .select("id, full_name, phone, email, user_id")
-          .eq("user_id", authUser.id)
-          .maybeSingle();
+          .eq("user_id", authUser.id);
 
-        if (parentRecord) {
+        if (parentRecords && parentRecords.length > 0) {
+          const parentIds = parentRecords.map(p => p.id);
+          const primaryParent = parentRecords[0];
+
           const { data: parentLinks } = await supabase
             .from("parent_links")
             .select(`
@@ -144,7 +146,7 @@ export function RoleProvider({ children }: { children: ReactNode }) {
                 classes:class_id (grade, stream)
               )
             `)
-            .eq("parent_id", parentRecord.id);
+            .in("parent_id", parentIds);
 
           const children = (parentLinks || [])
             .map((link) => {
@@ -167,8 +169,8 @@ export function RoleProvider({ children }: { children: ReactNode }) {
 
           nextUser = {
             ...nextUser,
-            name: parentRecord.full_name || nextUser.name,
-            email: parentRecord.email || nextUser.email,
+            name: primaryParent.full_name || nextUser.name,
+            email: primaryParent.email || nextUser.email,
             childrenIds: childIds,
             children: children,
           };

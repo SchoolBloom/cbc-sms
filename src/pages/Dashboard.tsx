@@ -670,13 +670,20 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <StatCard
+                  title="Current Grade"
+                  value={selectedChild?.classes ? `Grade ${selectedChild.classes.grade}` : "Unassigned"}
+                  subtitle={selectedChild?.classes ? `Stream: ${selectedChild.classes.stream}` : "Awaiting class allocation"}
+                  icon={GraduationCap}
+                  variant="primary"
+                />
                 <StatCard
                   title="Competency Status"
                   value={latestPerformanceLabel}
                   subtitle="Latest assessment score"
                   icon={TrendingUp}
-                  variant="primary"
+                  variant="default"
                 />
                 <StatCard
                   title="SSS Pathway Placement"

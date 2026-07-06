@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 export interface TransferLearnerInput {
   targetSchoolId: string;
-  identifierType: "UPI" | "KNEC";
+  identifierType: "UPI" | "KNEC" | "BIRTH_CERT";
   identifierValue: string;
   newAdmissionNumber: string;
   newClassId: string;

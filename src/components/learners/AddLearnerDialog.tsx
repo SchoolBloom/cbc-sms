@@ -74,7 +74,7 @@ export function AddLearnerDialog({ trigger }: AddLearnerDialogProps) {
   const queryClient = useQueryClient();
 
   // --- Transfer state ---
-  const [identifierType, setIdentifierType] = useState<"UPI" | "KNEC">("UPI");
+  const [identifierType, setIdentifierType] = useState<"UPI" | "KNEC" | "BIRTH_CERT">("UPI");
   const [identifierValue, setIdentifierValue] = useState("");
   const [transferAdmissionNumber, setTransferAdmissionNumber] = useState("");
   const [transferClassId, setTransferClassId] = useState("");
@@ -143,7 +143,7 @@ export function AddLearnerDialog({ trigger }: AddLearnerDialogProps) {
 
   const createLearner = useMutation({
     mutationFn: async (data: LearnerFormData) => {
-      const { error } = await supabase.from("learners").insert({
+      const learnerData = {
         admission_number: data.admission_number.trim(),
         assessment_number: data.assessment_number?.trim() || null,
         birth_certificate_number: data.birth_certificate_number?.trim() || null,
@@ -158,8 +158,46 @@ export function AddLearnerDialog({ trigger }: AddLearnerDialogProps) {
         parent_id: data.parent_id || null,
         parent_id_secondary: data.parent_id_secondary || null,
         medical_notes: data.medical_notes?.trim() || null,
-      });
-      if (error) throw error;
+      };
+      
+      const { error } = await supabase.from("learners").insert(learnerData);
+      
+      if (error) {
+        // If the learner already exists by birth certificate, attempt to admit/transfer them automatically
+        if (error.message.toLowerCase().includes("unique constraint") && 
+            error.message.includes("birth_certificate_number") && 
+            data.birth_certificate_number && schoolId) {
+          
+          const { error: transferError } = await supabase.rpc("admit_transfer_learner", {
+            p_target_school_id: schoolId,
+            p_identifier_type: "BIRTH_CERT",
+            p_identifier_value: data.birth_certificate_number.trim(),
+            p_new_admission_number: data.admission_number.trim(),
+            p_new_class_id: data.class_id || "",
+          });
+          
+          if (transferError) {
+             throw new Error("Learner exists but could not be transferred: " + transferError.message);
+          }
+          
+          // Optionally update other details that might have changed
+          const updatePayload: any = {
+            full_name: data.full_name.trim(),
+            date_of_birth: data.date_of_birth,
+            gender: data.gender,
+            pathway: requiresPathway ? data.pathway || null : null,
+            senior_pathway: requiresPathway ? data.senior_pathway || null : null,
+            medical_notes: data.medical_notes?.trim() || null,
+          };
+          if (data.parent_id) updatePayload.parent_id = data.parent_id;
+          if (data.parent_id_secondary) updatePayload.parent_id_secondary = data.parent_id_secondary;
+
+          await supabase.from("learners").update(updatePayload).eq("birth_certificate_number", data.birth_certificate_number.trim());
+          
+          return;
+        }
+        throw error;
+      }
     },
     onSuccess: () => {
       toast.success("Learner added successfully");
@@ -552,13 +590,14 @@ export function AddLearnerDialog({ trigger }: AddLearnerDialogProps) {
               <Tabs
                 value={identifierType}
                 onValueChange={(v) => {
-                  setIdentifierType(v as "UPI" | "KNEC");
+                  setIdentifierType(v as "UPI" | "KNEC" | "BIRTH_CERT");
                   setIdentifierValue("");
                 }}
               >
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="UPI">NEMIS UPI</TabsTrigger>
                   <TabsTrigger value="KNEC">KNEC Assessment No.</TabsTrigger>
+                  <TabsTrigger value="BIRTH_CERT">Birth Cert No.</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="UPI" className="mt-3">
@@ -591,6 +630,26 @@ export function AddLearnerDialog({ trigger }: AddLearnerDialogProps) {
                       <Input
                         id="knec-input"
                         placeholder="e.g. 12345678001"
+                        value={identifierValue}
+                        onChange={(e) => setIdentifierValue(e.target.value)}
+                        className="pl-8"
+                        required
+                        disabled={isTransferPending}
+                      />
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="BIRTH_CERT" className="mt-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="birth-cert-input" className="text-xs font-semibold">
+                      Birth Certificate Number
+                    </Label>
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="birth-cert-input"
+                        placeholder="e.g. BC-123456"
                         value={identifierValue}
                         onChange={(e) => setIdentifierValue(e.target.value)}
                         className="pl-8"
