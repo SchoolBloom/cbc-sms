@@ -49,12 +49,20 @@ export function AddAssessmentDialog() {
   const allowedClassIds = useMemo(() => {
     if (user.role !== "teacher") return null;
 
-    return new Set(
-      subjectAssignments
-        .filter((assignment) => assignment.teacher_id === teacherRecordId)
-        .map((assignment) => assignment.class_id)
-    );
-  }, [subjectAssignments, teacherRecordId, user.role]);
+    const classIds = new Set<string>();
+
+    // 1. Classes where the teacher is the class teacher
+    classes
+      ?.filter((cls) => cls.teacher_id === teacherRecordId)
+      .forEach((cls) => classIds.add(cls.id));
+
+    // 2. Classes where the teacher has subject assignments
+    subjectAssignments
+      .filter((assignment) => assignment.teacher_id === teacherRecordId)
+      .forEach((assignment) => classIds.add(assignment.class_id));
+
+    return classIds;
+  }, [classes, subjectAssignments, teacherRecordId, user.role]);
 
   const filteredClasses = useMemo(() => {
     if (!classes) return [];
@@ -71,9 +79,28 @@ export function AddAssessmentDialog() {
   }, [allowedClassIds, students]);
 
   const filteredStudentsByClass = filteredStudents.filter((s) => s.class_id === classId);
+
+  const isClassTeacher = useMemo(() => {
+    if (!classId || !classes) return false;
+    const cls = classes.find((c) => c.id === classId);
+    return cls?.teacher_id === teacherRecordId;
+  }, [classId, classes, teacherRecordId]);
+
   const allowedLearningAreas = useMemo(() => {
     if (user.role !== "teacher") {
       return getLearningAreasForCategories(categories).sort((a, b) => a.localeCompare(b));
+    }
+
+    // If the teacher is the class teacher of the selected class, allow all learning areas for that class's category
+    if (isClassTeacher) {
+      const cls = classes.find((c) => c.id === classId);
+      if (cls) {
+        const seniorSecondaryGrades = ["Grade 10", "Grade 11", "Grade 12"];
+        const classCategory = seniorSecondaryGrades.includes(cls.grade)
+          ? "senior_secondary"
+          : "primary_junior_secondary";
+        return getLearningAreasForCategories([classCategory as any]).sort((a, b) => a.localeCompare(b));
+      }
     }
 
     const assignedSubjectNames = subjectAssignments
@@ -87,7 +114,7 @@ export function AddAssessmentDialog() {
     );
 
     return unique.sort((a, b) => a.localeCompare(b));
-  }, [categories, classId, subjectAssignments, teacherRecordId, user.role]);
+  }, [categories, classId, isClassTeacher, classes, subjectAssignments, teacherRecordId, user.role]);
 
   const learningAreaPlaceholder =
     user.role === "teacher"

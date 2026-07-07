@@ -92,6 +92,7 @@ export function AddParentDialog({ trigger }: AddParentDialogProps) {
               full_name: data.full_name.trim(),
               phone: data.phone.trim(),
               email: normalizedEmail,
+              school_id: schoolId,
             })
             .eq("user_id", profile.user_id);
           if (profileError) throw profileError;

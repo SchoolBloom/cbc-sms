@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Eye, EyeOff, GraduationCap, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -56,8 +57,24 @@ export default function Login() {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("Account created. Please contact your admin for access.");
-      navigate("/awaiting-allocation");
+      // Check if they were automatically allocated a role via triggers
+      setTimeout(async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { data: roles } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", session.user.id);
+          
+          if (roles && roles.length > 0) {
+            toast.success("Welcome to SchoolBloom!");
+            navigate("/");
+            return;
+          }
+        }
+        toast.success("Account created. Please contact your admin for access.");
+        navigate("/awaiting-allocation");
+      }, 500);
     }
     
     setLoading(false);

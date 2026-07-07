@@ -68,8 +68,9 @@ export function AddTeacherDialog({ trigger }: AddTeacherDialogProps) {
       const finalPhone = data.phone?.trim() || profile?.phone || null;
 
       if (profile) {
-        const profileUpdates: Record<string, string> = {
+        const profileUpdates: Record<string, any> = {
           email: normalizedEmail,
+          school_id: schoolId,
         };
         if (data.full_name?.trim()) profileUpdates.full_name = data.full_name.trim();
         if (data.phone?.trim()) profileUpdates.phone = data.phone.trim();

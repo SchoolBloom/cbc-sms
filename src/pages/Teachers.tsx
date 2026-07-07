@@ -65,15 +65,31 @@ export default function Teachers() {
   });
   const classesByTeacher = useMemo(() => {
     const map = new Map<string, string[]>();
+    
+    // 1. Classes where the teacher is the class teacher
     classAssignments.forEach((row) => {
       if (!row.teacher_id) return;
       const label = `${row.grade} ${row.stream}`;
       const existing = map.get(row.teacher_id) || [];
-      existing.push(label);
+      if (!existing.includes(label)) {
+        existing.push(label);
+      }
       map.set(row.teacher_id, existing);
     });
+
+    // 2. Classes where the teacher teaches subjects/learning areas
+    subjectAssignments.forEach((row) => {
+      if (!row.teacher_id || !row.classes) return;
+      const label = `${row.classes.grade} ${row.classes.stream}`;
+      const existing = map.get(row.teacher_id) || [];
+      if (!existing.includes(label)) {
+        existing.push(label);
+      }
+      map.set(row.teacher_id, existing);
+    });
+
     return map;
-  }, [classAssignments]);
+  }, [classAssignments, subjectAssignments]);
   const subjectsByTeacher = useMemo(() => {
     const map = new Map<string, string[]>();
     subjectAssignments.forEach((row) => {
@@ -292,8 +308,8 @@ export default function Teachers() {
         teacher={viewTeacher}
         open={!!viewTeacher}
         onOpenChange={(open) => !open && setViewTeacher(null)}
-        classes={viewTeacher ? classesByTeacher.get(viewTeacher.user_id) || [] : []}
-        subjects={viewTeacher ? subjectsByTeacher.get(viewTeacher.user_id) || [] : []}
+        classes={viewTeacher ? classesByTeacher.get(viewTeacher.id) || [] : []}
+        subjects={viewTeacher ? subjectsByTeacher.get(viewTeacher.id) || [] : []}
       />
       <EditTeacherDialog
         teacher={editTeacher}

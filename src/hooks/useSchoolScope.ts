@@ -30,7 +30,8 @@ export function useSchoolScope() {
         const [
           { data: adminRole },
           { data: adminSchool },
-          { data: teacher },
+          { data: teacherByUserId },
+          { data: teacherByEmail },
           { data: parentByUserId },
           { data: parentByEmail },
         ] = await Promise.all([
@@ -51,6 +52,13 @@ export function useSchoolScope() {
             .select("school_id")
             .eq("user_id", user.id)
             .maybeSingle(),
+          user.email
+            ? supabase
+                .from("teachers")
+                .select("school_id")
+                .ilike("email", user.email)
+                .maybeSingle()
+            : Promise.resolve({ data: null }),
           supabase
             .from("parents")
             .select("school_id")
@@ -68,7 +76,8 @@ export function useSchoolScope() {
         resolvedSchoolId =
           adminRole?.school_id ||
           adminSchool?.id ||
-          teacher?.school_id ||
+          teacherByUserId?.school_id ||
+          teacherByEmail?.school_id ||
           parentByUserId?.school_id ||
           parentByEmail?.school_id ||
           null;

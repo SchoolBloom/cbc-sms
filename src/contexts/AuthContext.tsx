@@ -56,13 +56,77 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const fetchUserProfile = async (userId: string, email: string): Promise<AuthUser | null> => {
-    const { data: profile } = await supabase
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // 1. Fetch profile
+    let { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("full_name")
+      .select("id, user_id, full_name, email, school_id")
       .eq("user_id", userId)
       .maybeSingle();
 
+    // 2. Self-repair profile: If profile row is missing in profiles table, create it
+    if (!profile && !profileError) {
+      const { data: newProfile, error: insertError } = await supabase
+        .from("profiles")
+        .insert({
+          user_id: userId,
+          email: email,
+          full_name: email.split("@")[0],
+        })
+        .select()
+        .single();
+      
+      if (!insertError && newProfile) {
+        profile = newProfile;
+      }
+    }
+
+    // 3. Fetch user roles
     let roles = await fetchUserRoles(userId);
+    
+    // 4. Self-repair linkage: If user has no roles, check if pre-registered by email
+    if (roles.length === 0 && normalizedEmail) {
+      // Check teachers table
+      const { data: teacher, error: teacherError } = await supabase
+        .from("teachers")
+        .select("id, user_id, school_id")
+        .ilike("email", normalizedEmail)
+        .maybeSingle();
+
+      if (teacher && !teacherError) {
+        // Link teacher record (trigger will automatically create user_roles and sync profile school_id)
+        const { error: linkError } = await supabase
+          .from("teachers")
+          .update({ user_id: userId })
+          .eq("id", teacher.id);
+        
+        if (!linkError) {
+          // Re-fetch roles now that they are linked
+          roles = await fetchUserRoles(userId);
+        }
+      } else {
+        // Check parents table
+        const { data: parent, error: parentError } = await supabase
+          .from("parents")
+          .select("id, user_id, school_id")
+          .ilike("email", normalizedEmail)
+          .maybeSingle();
+
+        if (parent && !parentError) {
+          // Link parent record (trigger will automatically create user_roles and sync profile school_id)
+          const { error: linkError } = await supabase
+            .from("parents")
+            .update({ user_id: userId })
+            .eq("id", parent.id);
+
+          if (!linkError) {
+            // Re-fetch roles now that they are linked
+            roles = await fetchUserRoles(userId);
+          }
+        }
+      }
+    }
     
     // Admins are also treated as teachers of their school
     if (roles.includes("admin") && !roles.includes("teacher")) {

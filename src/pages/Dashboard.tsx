@@ -131,14 +131,51 @@ export default function Dashboard() {
     queryKey: ["teacher-classes", teacherRecordId],
     queryFn: async () => {
       if (user?.role !== "teacher" || !teacherRecordId) return [];
-      const { data, error } = await supabase
+      
+      // 1. Fetch classes where teacher is the class teacher
+      const { data: primaryClasses, error: primaryClassesError } = await supabase
         .from("classes")
         .select("id, grade, stream, teacher_id")
-        .eq("teacher_id", teacherRecordId)
-        .order("grade")
-        .order("stream");
-      if (error) throw error;
-      return data || [];
+        .eq("teacher_id", teacherRecordId);
+
+      if (primaryClassesError) throw primaryClassesError;
+
+      // 2. Fetch classes where teacher has subject assignments
+      const { data: assignedSubjects, error: subjectsError } = await supabase
+        .from("subject_assignments")
+        .select("class_id, classes(id, grade, stream, teacher_id)")
+        .eq("teacher_id", teacherRecordId);
+
+      if (subjectsError) throw subjectsError;
+
+      // Combine them and ensure uniqueness
+      const classMap = new Map<string, any>();
+      (primaryClasses || []).forEach((c) => {
+        classMap.set(c.id, c);
+      });
+      (assignedSubjects || []).forEach((as) => {
+        if (as.classes) {
+          const cls = Array.isArray(as.classes) ? as.classes[0] : as.classes;
+          if (cls) {
+            classMap.set(cls.id, {
+              id: cls.id,
+              grade: cls.grade,
+              stream: cls.stream,
+              teacher_id: cls.teacher_id,
+            });
+          }
+        }
+      });
+
+      const combined = Array.from(classMap.values());
+      // Sort combined classes
+      combined.sort((a, b) => {
+        const gradeCompare = a.grade.localeCompare(b.grade);
+        if (gradeCompare !== 0) return gradeCompare;
+        return a.stream.localeCompare(b.stream);
+      });
+
+      return combined;
     },
     enabled: user?.role === "teacher" && !!teacherRecordId,
   });
